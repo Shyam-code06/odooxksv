@@ -1,6 +1,8 @@
 import BaseService from '../../common/BaseService.js';
 import RfqRepository from './RfqRepository.js';
 import { NotFoundError } from '../../utils/customErrors.js';
+import NotificationService from '../notification/NotificationService.js';
+import pool from '../../config/db.js';
 
 const rfqRepository = new RfqRepository();
 
@@ -37,6 +39,26 @@ export default class RfqService extends BaseService {
     // Invite Vendors if specified
     if (data.assignedVendors && Array.isArray(data.assignedVendors)) {
       await this.repository.assignVendors(newRfq.id, data.assignedVendors);
+
+      // Notify invited vendors of the new RFQ creation
+      try {
+        const notificationService = new NotificationService();
+        const vendorUsersRes = await pool.query(`
+          SELECT u.id 
+          FROM "user" u
+          WHERE u.vendorid = ANY($1) AND u.isactive = TRUE
+        `, [data.assignedVendors]);
+
+        for (const vu of vendorUsersRes.rows) {
+          await notificationService.createNotification(
+            vu.id,
+            'New RFQ Invitation',
+            `You have been invited to submit a quotation for RFQ ${rfqNumber} ("${data.title}").`
+          );
+        }
+      } catch (notifErr) {
+        console.error('Failed to notify invited vendors of RFQ creation:', notifErr.message);
+      }
     }
 
     return this.findById(newRfq.id);

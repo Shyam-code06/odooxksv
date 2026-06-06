@@ -105,11 +105,17 @@ export default class InvoiceRepository extends BaseRepository {
 
     if (search && searchColumns.length > 0) {
       const searchClauses = [];
-      const sanitizedSearchColumns = searchColumns.filter(col => this.isColumnAllowed(col));
+      const sanitizedSearchColumns = searchColumns.filter(col => this.isColumnAllowed(col) || col === 'companyname' || col === 'ponumber');
       
       if (sanitizedSearchColumns.length > 0) {
         for (const col of sanitizedSearchColumns) {
-          searchClauses.push(`inv."${col}" ILIKE $${paramCounter}`);
+          if (col === 'companyname') {
+            searchClauses.push(`v."companyname" ILIKE $${paramCounter}`);
+          } else if (col === 'ponumber') {
+            searchClauses.push(`po."ponumber" ILIKE $${paramCounter}`);
+          } else {
+            searchClauses.push(`inv."${col}" ILIKE $${paramCounter}`);
+          }
         }
         whereClauses.push(`(${searchClauses.join(' OR ')})`);
         values.push(`%${search}%`);

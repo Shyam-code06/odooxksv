@@ -46,11 +46,16 @@ export default class RfqRepository extends BaseRepository {
       delete filters.vendorid; // remove it so base logic doesn't treat it as exact match on rfq table
     }
 
-    // Exact match filters on the table
+    // Exact match filters on the table (supports arrays using ANY)
     for (const [key, val] of Object.entries(filters)) {
       if (this.isColumnAllowed(key) && val !== undefined && val !== null && val !== '') {
-        whereClauses.push(`t."${key}" = $${paramCounter}`);
-        values.push(val);
+        if (Array.isArray(val)) {
+          whereClauses.push(`t."${key}" = ANY($${paramCounter})`);
+          values.push(val);
+        } else {
+          whereClauses.push(`t."${key}" = $${paramCounter}`);
+          values.push(val);
+        }
         paramCounter++;
       }
     }
@@ -141,9 +146,10 @@ export default class RfqRepository extends BaseRepository {
 
     // 3. Get quotations submitted
     const quotationsSql = `
-      SELECT q.*, v.companyname, v.rating as vendorrating
+      SELECT q.*, v.companyname, v.rating as vendorrating, po.id as purchaseorderid, po.ponumber
       FROM quotation q
       JOIN vendor v ON q.vendorid = v.id
+      LEFT JOIN purchaseorder po ON q.rfqid = po.rfqid AND q.vendorid = po.vendorid
       WHERE q.rfqid = $1
       ORDER BY q.totalprice ASC
     `;

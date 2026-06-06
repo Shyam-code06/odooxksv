@@ -111,11 +111,26 @@ const RFQs = () => {
     }
   });
 
-  // Mutation: Generate Purchase Order
-  const generatePoMutation = useMutation({
-    mutationFn: (quotationId) => axios.post(`http://localhost:5000/api/purchaseorder/generate`, { quotationId }),
+  // Mutation: Approve Quotation Offer (Procurement Officer)
+  const officerApproveMutation = useMutation({
+    mutationFn: (quotationId) => axios.post(`http://localhost:5000/api/quotation/${quotationId}/officer-approve`),
     onSuccess: () => {
-      alert('Purchase Order generated successfully! You can view it in the Purchase Orders tab.');
+      queryClient.invalidateQueries(['rfqs']);
+      queryClient.invalidateQueries(['rfq-detail', selectedRfqId]);
+      alert('Offer approved and sent to vendor successfully!');
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || 'Failed to approve offer');
+    }
+  });
+
+  // Mutation: Generate PO (Procurement Officer)
+  const generatePoMutation = useMutation({
+    mutationFn: (quotationId) => axios.post('http://localhost:5000/api/purchaseorder/generate', { quotationId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['rfqs']);
+      queryClient.invalidateQueries(['rfq-detail', selectedRfqId]);
+      alert('Purchase Order generated successfully!');
     },
     onError: (err) => {
       alert(err.response?.data?.message || 'Failed to generate Purchase Order');
@@ -175,6 +190,8 @@ const RFQs = () => {
   const getStatusBadgeVariant = (status) => {
     switch (status) {
       case 'Draft': return 'secondary';
+      case 'Pending Approval': return 'warning';
+      case 'Rejected': return 'danger';
       case 'Published': return 'primary';
       case 'Under Evaluation': return 'info';
       case 'Closed': return 'dark';
@@ -375,7 +392,7 @@ const RFQs = () => {
                 Cancel
               </button>
               <Button type="submit" variant="primary" loading={createRfqMutation.isPending}>
-                Create RFQ Draft
+                Create RFQ
               </Button>
             </div>
           </div>
@@ -409,11 +426,11 @@ const RFQs = () => {
                 <div className="d-flex gap-2">
                   {rfqDetail.status === 'Draft' && (
                     <Button 
-                      variant="warning" 
+                      variant="primary" 
                       onClick={() => requestApprovalMutation.mutate(rfqDetail.id)}
                       loading={requestApprovalMutation.isPending}
                     >
-                      <i className="bi bi-shield-check me-1" /> Request Publish Approval
+                      <i className="bi bi-send-check me-1" /> Request Publish Approval
                     </Button>
                   )}
                   {rfqDetail.status === 'Published' && (
@@ -481,6 +498,7 @@ const RFQs = () => {
                           <th>Total Cost</th>
                           <th>Delivery (Days)</th>
                           <th>Status</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -494,17 +512,40 @@ const RFQs = () => {
                                 <Badge variant={q.status === 'Accepted' ? 'success' : q.status === 'Rejected' ? 'danger' : 'warning'}>
                                   {q.status}
                                 </Badge>
-                                {q.status === 'Accepted' && (
-                                  <Button 
-                                    variant="outline-success" 
-                                    size="sm"
-                                    onClick={() => generatePoMutation.mutate(q.id)}
-                                    loading={generatePoMutation.isPending}
-                                  >
-                                    Generate PO
-                                  </Button>
-                                )}
                               </div>
+                            </td>
+                            <td>
+                              {q.status === 'Accepted' && (
+                                q.purchaseorderid ? (
+                                  <Badge variant="primary">
+                                    PO Issued: {q.ponumber}
+                                  </Badge>
+                                ) : q.officerapproved ? (
+                                  q.vendoraccepted ? (
+                                    <Button 
+                                      variant="primary" 
+                                      size="sm"
+                                      onClick={() => generatePoMutation.mutate(q.id)}
+                                      loading={generatePoMutation.isPending}
+                                    >
+                                      <i className="bi bi-file-earmark-plus me-1" /> Generate PO
+                                    </Button>
+                                  ) : (
+                                    <Badge variant="warning">
+                                      Pending Vendor Acceptance
+                                    </Badge>
+                                  )
+                                ) : (
+                                  <Button 
+                                    variant="success" 
+                                    size="sm"
+                                    onClick={() => officerApproveMutation.mutate(q.id)}
+                                    loading={officerApproveMutation.isPending}
+                                  >
+                                    <i className="bi bi-check-circle me-1" /> Approve & Send Offer
+                                  </Button>
+                                )
+                              )}
                             </td>
                           </tr>
                         ))}

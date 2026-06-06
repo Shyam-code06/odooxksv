@@ -32,10 +32,10 @@ export default class ApprovalController extends BaseController {
         throw new AppError('Only Manager or Admin can process approval decisions.', 403);
       }
 
-      const { id } = req.params;
+      const { stepId } = req.params;
       const { status, remarks } = req.body;
-      const result = await this.service.decide(id, { status, remarks });
-      await auditRepo.logEvent({ userid: req.user.id, action: `decide_${status.toLowerCase()}`, module: 'approval', newvalue: { stepId: id, status, remarks } });
+      const result = await this.service.decide(stepId, { status, remarks });
+      await auditRepo.logEvent({ userid: req.user.id, action: `decide_${status.toLowerCase()}`, module: 'approval', newvalue: { stepId, status, remarks } });
       return this.sendSuccess(res, result, `Approval step ${status.toLowerCase()} successfully`);
     } catch (error) {
       next(error);

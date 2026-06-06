@@ -2,10 +2,15 @@ import BaseService from '../../common/BaseService.js';
 import ApprovalRepository from './ApprovalRepository.js';
 import pool from '../../config/db.js';
 import { AppError, NotFoundError } from '../../utils/customErrors.js';
+
+import NotificationService from '../notification/NotificationService.js';
 import PurchaseOrderService from '../purchaseorder/PurchaseOrderService.js';
+import InvoiceService from '../invoice/InvoiceService.js';
+
 
 const approvalRepository = new ApprovalRepository();
-const poService = new PurchaseOrderService();
+
+
 
 export default class ApprovalService extends BaseService {
   constructor() {
@@ -93,6 +98,18 @@ export default class ApprovalService extends BaseService {
     // 4. Update RFQ status
     await pool.query("UPDATE rfq SET status = 'Pending Approval', updatedat = CURRENT_TIMESTAMP WHERE id = $1", [rfqId]);
 
+    // 5. Send notification to the manager
+    try {
+      const notificationService = new NotificationService();
+      await notificationService.createNotification(
+        targetApproverId,
+        'RFQ Approval Request',
+        `A new RFQ ${rfq.rfqnumber} ("${rfq.title}") is pending your publish approval.`
+      );
+    } catch (notifErr) {
+      console.error('Failed to notify manager of RFQ approval request:', notifErr.message);
+    }
+
     return result;
   }
 
@@ -110,10 +127,53 @@ export default class ApprovalService extends BaseService {
 
     // Handle workflow type 'RFQ_Publish'
     if (workflow.type === 'RFQ_Publish') {
+      const rfqRes = await pool.query('SELECT createdby, rfqnumber, title FROM rfq WHERE id = $1', [rfqId]);
+      const rfq = rfqRes.rows[0];
+      const rfqNumber = rfq?.rfqnumber || 'Unknown';
+      const createdBy = rfq?.createdby;
+      const notificationService = new NotificationService();
+
       if (status === 'Approved') {
         await pool.query("UPDATE rfq SET status = 'Published', updatedat = CURRENT_TIMESTAMP WHERE id = $1", [rfqId]);
+        
+        // Broadcast notification to all Vendors, Managers, and Procurement Officers
+        try {
+          await notificationService.broadcastToRoles(
+            ['Vendor', 'Manager', 'ProcurementOfficer'],
+            'RFQ Published',
+            `A new RFQ ${rfqNumber} ("${rfq?.title || ''}") has been published and is open for bidding.`
+          );
+        } catch (notifErr) {
+          console.error('RFQ approved but failed to broadcast notifications:', notifErr.message);
+        }
+
+        // Direct notification to the creator (Procurement Officer)
+        if (createdBy) {
+          try {
+            await notificationService.createNotification(
+              createdBy,
+              'RFQ Approved',
+              `Your RFQ ${rfqNumber} ("${rfq?.title || ''}") has been approved and published.`
+            );
+          } catch (notifErr) {
+            console.error('RFQ approved but failed to notify creator:', notifErr.message);
+          }
+        }
       } else {
         await pool.query("UPDATE rfq SET status = 'Rejected', updatedat = CURRENT_TIMESTAMP WHERE id = $1", [rfqId]);
+
+        // Direct notification to the creator (Procurement Officer)
+        if (createdBy) {
+          try {
+            await notificationService.createNotification(
+              createdBy,
+              'RFQ Rejected',
+              `Your RFQ ${rfqNumber} ("${rfq?.title || ''}") has been rejected by the manager.`
+            );
+          } catch (notifErr) {
+            console.error('RFQ rejected but failed to notify creator:', notifErr.message);
+          }
+        }
       }
     }
 
@@ -137,7 +197,43 @@ export default class ApprovalService extends BaseService {
             [rfqId, acceptedQuotation.id]
           );
 
-          // Removed Auto-generate Purchase Order, now handled manually by Procurement Officer
+          // Auto-generate PO and Invoice
+          try {
+            const poService = new PurchaseOrderService();
+            const invoiceService = new InvoiceService();
+
+            // 1. Generate PO
+            const generatedPO = await poService.generatePOFromQuotation(acceptedQuotation.id, rfqId);
+
+            // 2. Set the PO status to 'Completed' to allow immediate invoice generation
+            await pool.query("UPDATE purchaseorder SET status = 'Completed', updatedat = CURRENT_TIMESTAMP WHERE id = $1", [generatedPO.id]);
+
+            // 3. Generate Invoice
+            await invoiceService.createInvoiceFromPO(generatedPO.id);
+
+            // 4. Set officerapproved = true and vendoraccepted = true on the quotation
+            await pool.query(
+              "UPDATE quotation SET officerapproved = true, vendoraccepted = true, updatedat = CURRENT_TIMESTAMP WHERE id = $1",
+              [acceptedQuotation.id]
+            );
+          } catch (autoGenErr) {
+            console.error('Error auto-generating PO and Invoice after manager approval:', autoGenErr.message);
+          }
+        }
+
+        // Broadcast quotation approval notification to all Vendors, Managers, and Procurement Officers
+        try {
+          const rfqRes = await pool.query("SELECT rfqnumber, title FROM rfq WHERE id = $1", [rfqId]);
+          const rfq = rfqRes.rows[0];
+          const rfqNumber = rfq?.rfqnumber || 'Unknown';
+          const notificationService = new NotificationService();
+          await notificationService.broadcastToRoles(
+            ['Vendor', 'Manager', 'ProcurementOfficer'],
+            'Quotation Approved',
+            `Quotation has been approved for RFQ ${rfqNumber} ("${rfq?.title || ''}").`
+          );
+        } catch (notifErr) {
+          console.error('Quotation approved but failed to broadcast notifications:', notifErr.message);
         }
       } else {
         // Rejected workflow

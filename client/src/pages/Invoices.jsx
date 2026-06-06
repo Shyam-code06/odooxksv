@@ -10,6 +10,8 @@ import Button from '../common/components/Button';
 import Modal from '../common/components/Modal';
 import Loader from '../common/components/Loader';
 import { useAuth } from '../common/contexts/AuthContext';
+import FilterBar from '../common/components/FilterBar';
+import SearchBar from '../common/components/SearchBar';
 
 const Invoices = () => {
   const { user } = useAuth();
@@ -17,11 +19,24 @@ const Invoices = () => {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('createdat');
+  const [sortOrder, setSortOrder] = useState('DESC');
+
   // 1. Fetch Invoices list
   const { data: invoiceResponse, isLoading, isFetching } = useQuery({
-    queryKey: ['invoices-list', user?.rolename],
+    queryKey: ['invoices-list', page, limit, search, sortBy, sortOrder],
     queryFn: async () => {
-      const res = await axios.get('http://localhost:5000/api/invoice');
+      const params = {
+        page,
+        limit,
+        search,
+        sortBy,
+        sortOrder
+      };
+      const res = await axios.get('http://localhost:5000/api/invoice', { params });
       return res.data;
     }
   });
@@ -57,18 +72,23 @@ const Invoices = () => {
     {
       key: 'invoicenumber',
       header: 'Invoice Number',
+      sortable: true,
       render: (row) => <span className="fw-semibold text-primary">{row.invoicenumber}</span>
     },
-    { key: 'ponumber', header: 'PO Reference', render: (row) => row.ponumber || 'N/A' },
-    { key: 'companyname', header: 'Supplier Vendor' },
-    { key: 'subtotal', header: 'Subtotal', render: (row) => `$${parseFloat(row.subtotal).toLocaleString()}` },
-    { key: 'totalamount', header: 'Total (inc. GST)', render: (row) => <span className="fw-bold text-dark">${parseFloat(row.totalamount).toLocaleString()}</span> },
+    { key: 'ponumber', header: 'PO Reference', sortable: false, render: (row) => row.ponumber || 'N/A' },
+    { key: 'companyname', header: 'Supplier Vendor', sortable: false },
+    { key: 'subtotal', header: 'Subtotal', sortable: true, render: (row) => `$${parseFloat(row.subtotal).toLocaleString()}` },
+    { key: 'totalamount', header: 'Total (inc. GST)', sortable: true, render: (row) => <span className="fw-bold text-dark">${parseFloat(row.totalamount).toLocaleString()}</span> },
     {
       key: 'status',
       header: 'Status',
-      render: (row) => <Badge variant={getStatusBadgeVariant(row.status)}>{row.status}</Badge>
+      sortable: true,
+      render: (row) => {
+        const displayStatus = row.status === 'Paid' ? 'Successful' : (row.status === 'Unpaid' ? 'Successfully Placed (Unpaid)' : row.status);
+        return <Badge variant={getStatusBadgeVariant(row.status)}>{displayStatus}</Badge>;
+      }
     },
-    { key: 'duedate', header: 'Due Date', render: (row) => new Date(row.duedate).toLocaleDateString() },
+    { key: 'duedate', header: 'Due Date', sortable: true, render: (row) => new Date(row.duedate).toLocaleDateString() },
     {
       key: 'actions',
       header: 'Actions',
@@ -84,17 +104,39 @@ const Invoices = () => {
     <div className="container-fluid p-0">
       <PageHeader
         title="Invoices & Payments"
+        className="d-print-none"
         breadcrumbs={[
           { label: 'Dashboard', link: '/dashboard' },
           { label: 'Invoices', link: '/invoices' }
         ]}
       />
 
+      <FilterBar onClear={() => {
+        setSearch('');
+        setPage(1);
+      }} className="d-print-none">
+        <SearchBar
+          value={search}
+          onChange={(val) => { setSearch(val); setPage(1); }}
+          placeholder="Search Invoice, PO, Vendor..."
+          style={{ maxWidth: '280px' }}
+        />
+      </FilterBar>
+
       <Card title="Supplier Invoices">
         <BaseTable
           columns={columns}
           data={invoiceResponse?.data || []}
           loading={isLoading || isFetching}
+          pagination={invoiceResponse?.meta || null}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={(key, order) => {
+            setSortBy(key);
+            setSortOrder(order);
+          }}
         />
       </Card>
 
@@ -108,13 +150,39 @@ const Invoices = () => {
         {detailLoading ? (
           <Loader text="Loading invoice details..." />
         ) : invoiceDetail ? (
-          <div>
-            <div className="d-flex justify-content-between align-items-center mb-4">
-              <div>
-                <span className="small text-muted text-uppercase fw-semibold">Billing Status</span>
+          <div className="printable-invoice">
+            {/* Print-only Invoice Branding Header */}
+            <div className="print-only mb-4 pb-3 border-bottom">
+              <div className="d-flex justify-content-between align-items-center">
                 <div>
-                  <Badge variant={getStatusBadgeVariant(invoiceDetail.status)}>{invoiceDetail.status}</Badge>
+                  <h4 className="fw-bold text-dark mb-0">INVOICE RECEIPT</h4>
+                  <span className="text-muted small" style={{ fontSize: '0.8rem' }}>Procurement & Vendor Bridge ERP</span>
                 </div>
+                <div className="text-end">
+                  <h5 className="fw-bold text-primary mb-0">{invoiceDetail.invoicenumber}</h5>
+                  <span className="text-muted small" style={{ fontSize: '0.8rem' }}>PO Reference: {invoiceDetail.ponumber}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="d-flex justify-content-between align-items-center mb-4 d-print-none">
+              <div className="d-flex gap-3 align-items-center">
+                <div>
+                  <span className="small text-muted text-uppercase fw-semibold">Billing Status</span>
+                  <div>
+                    <Badge variant={getStatusBadgeVariant(invoiceDetail.status)}>
+                      {invoiceDetail.status === 'Paid' ? 'Successful' : (invoiceDetail.status === 'Unpaid' ? 'Successfully Placed (Unpaid)' : invoiceDetail.status)}
+                    </Badge>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline-primary" 
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="btn-print-invoice mt-3"
+                >
+                  <i className="bi bi-printer me-1" /> Print / Save PDF
+                </Button>
               </div>
               <div className="text-end">
                 <span className="small text-muted text-uppercase fw-semibold d-block">PO Reference</span>

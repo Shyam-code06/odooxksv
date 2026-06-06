@@ -105,6 +105,13 @@ async function startServer() {
     await pool.query('SELECT 1');
     console.log('Database connected successfully.');
 
+    // Ensure quotation columns are present for the new workflow
+    await pool.query(`
+      ALTER TABLE quotation ADD COLUMN IF NOT EXISTS officerapproved BOOLEAN DEFAULT FALSE;
+      ALTER TABLE quotation ADD COLUMN IF NOT EXISTS vendoraccepted BOOLEAN DEFAULT FALSE;
+    `);
+    console.log('Quotation schema verified/updated for new workflow.');
+
     app.listen(PORT, () => {
       console.log(`Server is running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
     });

@@ -16,7 +16,9 @@ export default class UserRepository extends BaseRepository {
       'createdby',
       'updatedby',
       'createdat',
-      'updatedat'
+      'updatedat',
+      'resetotp',
+      'resetotpexpiresat'
     ]);
   }
 

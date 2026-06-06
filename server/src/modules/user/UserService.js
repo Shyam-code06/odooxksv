@@ -21,6 +21,18 @@ export default class UserService extends BaseService {
       throw new BadRequestError('Username, email, password, and role are required.');
     }
 
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestError('Invalid or incomplete email format.');
+    }
+
+    if (phonenumber) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(phonenumber)) {
+        throw new BadRequestError('Mobile number must be exactly 10 digits.');
+      }
+    }
+
     const existingUsername = await this.repository.findByUsername(username);
     if (existingUsername) {
       throw new ConflictError('Username is already taken.');
@@ -59,6 +71,18 @@ export default class UserService extends BaseService {
 
   async update(id, data, actorUserId) {
     const { firstname, lastname, email, phonenumber, username, roleid, isactive } = data;
+    
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (email && !emailRegex.test(email)) {
+      throw new BadRequestError('Invalid or incomplete email format.');
+    }
+
+    if (phonenumber) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(phonenumber)) {
+        throw new BadRequestError('Mobile number must be exactly 10 digits.');
+      }
+    }
     
     const currentUser = await this.findById(id);
 

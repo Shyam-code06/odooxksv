@@ -1,11 +1,34 @@
 import BaseService from '../../common/BaseService.js';
 import NotificationRepository from './NotificationRepository.js';
+import pool from '../../config/db.js';
 
 const notificationRepo = new NotificationRepository();
 
 export default class NotificationService extends BaseService {
   constructor() {
     super(notificationRepo);
+  }
+
+  /**
+   * Broadcast a notification to all active users having specific role names
+   */
+  async broadcastToRoles(roles, type, message) {
+    try {
+      const rolesList = Array.isArray(roles) ? roles : [roles];
+      const userRes = await pool.query(`
+        SELECT u.id 
+        FROM "user" u
+        JOIN role r ON u.roleid = r.id
+        WHERE r.name = ANY($1) AND u.isactive = TRUE
+      `, [rolesList]);
+
+      const users = userRes.rows;
+      for (const user of users) {
+        await this.createNotification(user.id, type, message);
+      }
+    } catch (err) {
+      console.error('Failed to broadcast notifications to roles:', err.message);
+    }
   }
 
   async getUserNotifications(userId) {

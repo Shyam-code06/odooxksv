@@ -2,6 +2,7 @@ import BaseController from '../../common/BaseController.js';
 import RfqService from './RfqService.js';
 import ApprovalService from '../approval/ApprovalService.js';
 import AuditLogRepository from '../auditlog/AuditLogRepository.js';
+import { NotFoundError } from '../../utils/customErrors.js';
 
 const rfqService = new RfqService();
 const approvalService = new ApprovalService();
@@ -11,6 +12,7 @@ export default class RfqController extends BaseController {
   constructor() {
     super(rfqService);
     this.create = this.create.bind(this);
+    this.getById = this.getById.bind(this);
     this.update = this.update.bind(this);
     this.publish = this.publish.bind(this);
     this.requestApproval = this.requestApproval.bind(this);
@@ -72,6 +74,26 @@ export default class RfqController extends BaseController {
     }
   }
 
+  async getById(req, res, next) {
+    try {
+      const { id } = req.params;
+      const record = await this.service.findById(id);
+
+      // If user is a Vendor, restrict access to only published/approved RFQs and where they are assigned
+      if (req.user.rolename === 'Vendor') {
+        const allowedStatuses = ['Published', 'Under Evaluation', 'Closed', 'Completed', 'Cancelled'];
+        const isAssigned = record.assignedVendors?.some(v => v.id === req.user.vendorid);
+        if (!allowedStatuses.includes(record.status) || !isAssigned) {
+          throw new NotFoundError(`RFQ with ID ${id} not found.`);
+        }
+      }
+
+      return this.sendSuccess(res, record, 'RFQ retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getAll(req, res, next) {
     try {
       const {
@@ -83,11 +105,21 @@ export default class RfqController extends BaseController {
         ...restFilters
       } = req.query;
 
-      // If user is a Vendor, restrict filter to only their vendor ID
+      // If user is a Vendor, restrict filter to only their vendor ID and approved RFQs
       if (req.user.rolename === 'Vendor') {
         restFilters.vendorid = req.user.vendorid;
-        // Vendors should only see Published RFQs
-        restFilters.status = 'Published';
+        
+        const allowedStatuses = ['Published', 'Under Evaluation', 'Closed', 'Completed', 'Cancelled'];
+        if (restFilters.status) {
+          // If vendor requested a specific status, ensure it is one of the allowed ones
+          if (!allowedStatuses.includes(restFilters.status)) {
+            // Force it to an empty array so it won't match any valid status
+            restFilters.status = [];
+          }
+        } else {
+          // Default to all allowed/approved statuses
+          restFilters.status = allowedStatuses;
+        }
       }
 
       const result = await this.service.findAll({

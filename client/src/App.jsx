@@ -16,6 +16,8 @@ import Approvals from './pages/Approvals';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Invoices from './pages/Invoices';
 import Reports from './pages/Reports';
+import ChangePassword from './pages/ChangePassword';
+import ForgotPassword from './pages/ForgotPassword';
 
 // Setup TanStack React Query Client
 const queryClient = new QueryClient({
@@ -36,6 +38,7 @@ function App() {
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             {/* Protected Admin Shell Routes */}
             <Route path="/" element={<AdminLayout />}>
@@ -50,6 +53,7 @@ function App() {
               <Route path="purchase-orders" element={<PurchaseOrders />} />
               <Route path="invoices" element={<Invoices />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="change-password" element={<ChangePassword />} />
             </Route>
 
             {/* Fallback routing */}

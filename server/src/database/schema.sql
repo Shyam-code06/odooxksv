@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS "user" (
     createdby UUID REFERENCES "user"(id) ON DELETE SET NULL,
     updatedby UUID REFERENCES "user"(id) ON DELETE SET NULL,
     createdat TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updatedat TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updatedat TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resetotp VARCHAR(6),
+    resetotpexpiresat TIMESTAMP WITH TIME ZONE
 );
 
 -- Session Table
@@ -147,6 +149,8 @@ CREATE TABLE IF NOT EXISTS quotation (
     notes TEXT,
     attachmenturl VARCHAR(512),
     status VARCHAR(50) DEFAULT 'Submitted' CHECK (status IN ('Submitted', 'Reviewed', 'Accepted', 'Rejected')),
+    officerapproved BOOLEAN DEFAULT FALSE,
+    vendoraccepted BOOLEAN DEFAULT FALSE,
     createdat TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updatedat TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -264,3 +268,7 @@ CREATE INDEX IF NOT EXISTS idx_user_vendorid ON "user"(vendorid);
 ALTER TABLE rfq ADD COLUMN IF NOT EXISTS category VARCHAR(100);
 ALTER TABLE rfq ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1;
 ALTER TABLE rfq ADD COLUMN IF NOT EXISTS unit VARCHAR(50);
+
+-- Add OTP verification columns to user table
+ALTER TABLE "user" ADD COLUMN IF NOT EXISTS resetotp VARCHAR(6);
+ALTER TABLE "user" ADD COLUMN IF NOT EXISTS resetotpexpiresat TIMESTAMP WITH TIME ZONE;

@@ -8,10 +8,12 @@ export default class DashboardService {
       const vendorId = user.vendorid;
 
       // 1. RFQs received count
-      const rfqsReceivedResult = await pool.query(
-        'SELECT COUNT(*)::int FROM rfqvendor WHERE vendorid = $1',
-        [vendorId]
-      );
+      const rfqsReceivedResult = await pool.query(`
+        SELECT COUNT(rv.rfqid)::int 
+        FROM rfqvendor rv
+        JOIN rfq r ON rv.rfqid = r.id
+        WHERE rv.vendorid = $1 AND r.status NOT IN ('Draft', 'Pending Approval', 'Rejected')
+      `, [vendorId]);
       const rfqsReceived = rfqsReceivedResult.rows[0].count;
 
       // 2. Quotations submitted count
@@ -33,7 +35,7 @@ export default class DashboardService {
         SELECT r.* 
         FROM rfqvendor rv 
         JOIN rfq r ON rv.rfqid = r.id 
-        WHERE rv.vendorid = $1 
+        WHERE rv.vendorid = $1 AND r.status NOT IN ('Draft', 'Pending Approval', 'Rejected')
         ORDER BY rv.invitedat DESC 
         LIMIT 5
       `, [vendorId]);
@@ -57,16 +59,38 @@ export default class DashboardService {
       );
       const recentPOs = recentPOsResult.rows;
 
+      // 7. Recent Invoices
+      const invoicesResult = await pool.query(`
+        SELECT COUNT(i.id)::int 
+        FROM invoice i 
+        JOIN purchaseorder po ON i.purchaseorderid = po.id 
+        WHERE po.vendorid = $1
+      `, [vendorId]);
+      const invoicesCount = invoicesResult.rows[0].count;
+
+      const recentInvoicesResult = await pool.query(`
+        SELECT i.*, po.ponumber, v.companyname 
+        FROM invoice i 
+        JOIN purchaseorder po ON i.purchaseorderid = po.id 
+        JOIN vendor v ON po.vendorid = v.id 
+        WHERE po.vendorid = $1 
+        ORDER BY i.createdat DESC 
+        LIMIT 5
+      `, [vendorId]);
+      const recentInvoices = recentInvoicesResult.rows;
+
       return {
         role,
         stats: {
           rfqsReceived,
           quotationsSubmitted,
-          purchaseOrdersCount
+          purchaseOrdersCount,
+          invoicesCount
         },
         recentRfqs,
         recentQuotations,
-        recentPOs
+        recentPOs,
+        recentInvoices
       };
     }
 
@@ -105,29 +129,63 @@ export default class DashboardService {
       `);
       const recentPOs = recentPOsResult.rows;
 
+      // 6. Recent Invoices
+      const invoicesResult = await pool.query(
+        'SELECT COUNT(*)::int FROM invoice'
+      );
+      const invoicesCount = invoicesResult.rows[0].count;
+
+      const recentInvoicesResult = await pool.query(`
+        SELECT i.*, po.ponumber, v.companyname 
+        FROM invoice i 
+        JOIN purchaseorder po ON i.purchaseorderid = po.id 
+        JOIN vendor v ON po.vendorid = v.id 
+        ORDER BY i.createdat DESC 
+        LIMIT 5
+      `);
+      const recentInvoices = recentInvoicesResult.rows;
+
       return {
         role,
         stats: {
           activeRfqs,
           pendingQuotations,
-          purchaseOrdersCount
+          purchaseOrdersCount,
+          invoicesCount
         },
         recentRfqs,
-        recentPOs
+        recentPOs,
+        recentInvoices
       };
     }
 
     if (role === 'Manager') {
       // 1. Pending approval steps count
       const pendingApprovalsResult = await pool.query(
-        "SELECT COUNT(*)::int FROM approvalstep WHERE approverid = $1 AND status = 'Pending'",
+        `SELECT COUNT(*)::int 
+         FROM approvalstep s
+         JOIN approvalworkflow w ON s.workflowid = w.id
+         WHERE s.approverid = $1 AND s.status = 'Pending' AND w.status = 'Pending'
+         AND (
+           (w.type IN ('RFQ', 'RFQ_Publish') AND EXISTS (SELECT 1 FROM rfq WHERE id = w.targetid))
+           OR
+           (w.type = 'PurchaseOrder' AND EXISTS (SELECT 1 FROM purchaseorder WHERE id = w.targetid))
+         )`,
         [user.id]
       );
       const pendingApprovals = pendingApprovalsResult.rows[0].count;
 
       // 2. Completed approvals count
       const completedApprovalsResult = await pool.query(
-        "SELECT COUNT(*)::int FROM approvalstep WHERE approverid = $1 AND status != 'Pending'",
+        `SELECT COUNT(*)::int 
+         FROM approvalstep s
+         JOIN approvalworkflow w ON s.workflowid = w.id
+         WHERE s.approverid = $1 AND s.status != 'Pending'
+         AND (
+           (w.type IN ('RFQ', 'RFQ_Publish') AND EXISTS (SELECT 1 FROM rfq WHERE id = w.targetid))
+           OR
+           (w.type = 'PurchaseOrder' AND EXISTS (SELECT 1 FROM purchaseorder WHERE id = w.targetid))
+         )`,
         [user.id]
       );
       const completedApprovals = completedApprovalsResult.rows[0].count;
@@ -154,14 +212,43 @@ export default class DashboardService {
       `, [user.id]);
       const recentHistorySteps = recentHistoryStepsResult.rows;
 
+      const purchaseOrdersResult = await pool.query('SELECT COUNT(*)::int FROM purchaseorder');
+      const purchaseOrdersCount = purchaseOrdersResult.rows[0].count;
+
+      const invoicesResult = await pool.query('SELECT COUNT(*)::int FROM invoice');
+      const invoicesCount = invoicesResult.rows[0].count;
+
+      const recentPOsResult = await pool.query(`
+        SELECT po.*, v.companyname 
+        FROM purchaseorder po 
+        JOIN vendor v ON po.vendorid = v.id 
+        ORDER BY po.createdat DESC 
+        LIMIT 5
+      `);
+      const recentPOs = recentPOsResult.rows;
+
+      const recentInvoicesResult = await pool.query(`
+        SELECT i.*, po.ponumber, v.companyname 
+        FROM invoice i 
+        JOIN purchaseorder po ON i.purchaseorderid = po.id 
+        JOIN vendor v ON po.vendorid = v.id 
+        ORDER BY i.createdat DESC 
+        LIMIT 5
+      `);
+      const recentInvoices = recentInvoicesResult.rows;
+
       return {
         role,
         stats: {
           pendingApprovals,
-          completedApprovals
+          completedApprovals,
+          purchaseOrdersCount,
+          invoicesCount
         },
         recentPendingSteps,
-        recentHistorySteps
+        recentHistorySteps,
+        recentPOs,
+        recentInvoices
       };
     }
 
@@ -182,7 +269,7 @@ export default class DashboardService {
 
     // 4. Total Spend
     const totalSpendResult = await pool.query(
-      "SELECT COALESCE(SUM(totalamount), 0)::float FROM purchaseorder WHERE status IN ('Issued', 'Completed')"
+      "SELECT COALESCE(SUM(totalamount), 0)::float AS sum FROM purchaseorder WHERE status IN ('Issued', 'Completed')"
     );
     const totalSpend = totalSpendResult.rows[0].sum;
 
@@ -199,22 +286,39 @@ export default class DashboardService {
     `);
     const roleStats = roleStatsResult.rows;
 
-    // 6. Recent activity logs (last 5 logs)
-    const recentLogsResult = await pool.query(`
-      SELECT 
-        al.id, 
-        al.createdat, 
-        al.action, 
-        al.module, 
-        u.username, 
-        u.firstname, 
-        u.lastname
-      FROM "auditlog" al
-      LEFT JOIN "user" u ON al.userid = u.id
-      ORDER BY al.createdat DESC
+    // 6. Recent Registered Vendors (last 5 vendors)
+    const recentVendorsResult = await pool.query(`
+      SELECT id, companyname, category, email, status, createdat
+      FROM vendor
+      ORDER BY createdat DESC
       LIMIT 5
     `);
-    const recentLogs = recentLogsResult.rows;
+    const recentVendors = recentVendorsResult.rows;
+
+    const purchaseOrdersResult = await pool.query('SELECT COUNT(*)::int FROM purchaseorder');
+    const purchaseOrdersCount = purchaseOrdersResult.rows[0].count;
+
+    const invoicesResult = await pool.query('SELECT COUNT(*)::int FROM invoice');
+    const invoicesCount = invoicesResult.rows[0].count;
+
+    const recentPOsResult = await pool.query(`
+      SELECT po.*, v.companyname 
+      FROM purchaseorder po 
+      JOIN vendor v ON po.vendorid = v.id 
+      ORDER BY po.createdat DESC 
+      LIMIT 5
+    `);
+    const recentPOs = recentPOsResult.rows;
+
+    const recentInvoicesResult = await pool.query(`
+      SELECT i.*, po.ponumber, v.companyname 
+      FROM invoice i 
+      JOIN purchaseorder po ON i.purchaseorderid = po.id 
+      JOIN vendor v ON po.vendorid = v.id 
+      ORDER BY i.createdat DESC 
+      LIMIT 5
+    `);
+    const recentInvoices = recentInvoicesResult.rows;
 
     return {
       role,
@@ -222,10 +326,14 @@ export default class DashboardService {
         totalVendors,
         totalRfqs,
         pendingApprovals,
-        totalSpend
+        totalSpend,
+        purchaseOrdersCount,
+        invoicesCount
       },
       roleStats,
-      recentLogs
+      recentVendors,
+      recentPOs,
+      recentInvoices
     };
   }
 }

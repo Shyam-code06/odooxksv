@@ -23,6 +23,20 @@ const Approvals = () => {
   const [decisionModalOpen, setDecisionModalOpen] = useState(false);
   const [targetStatus, setTargetStatus] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [validationError, setValidationError] = useState('');
+  const [selectedRfqId, setSelectedRfqId] = useState(null);
+  const [rfqDetailModalOpen, setRfqDetailModalOpen] = useState(false);
+
+  // Fetch single RFQ detail for evaluation review
+  const { data: rfqDetail, isLoading: rfqDetailLoading } = useQuery({
+    queryKey: ['rfq-detail-approvals', selectedRfqId],
+    queryFn: async () => {
+      if (!selectedRfqId) return null;
+      const res = await axios.get(`http://localhost:5000/api/rfq/${selectedRfqId}`);
+      return res.data.data;
+    },
+    enabled: !!selectedRfqId
+  });
 
   // 1. Fetch pending approvals list
   const { data: pendingList, isLoading: pendingLoading } = useQuery({
@@ -64,10 +78,17 @@ const Approvals = () => {
   const triggerDecision = (approval, status) => {
     setSelectedApproval(approval);
     setTargetStatus(status);
+    setRemarks('');
+    setValidationError('');
     setDecisionModalOpen(true);
   };
 
   const confirmDecision = () => {
+    if (targetStatus === 'Rejected' && !remarks.trim()) {
+      setValidationError('Remarks are required when rejecting approval.');
+      return;
+    }
+    setValidationError('');
     if (selectedApproval && targetStatus) {
       processDecisionMutation.mutate({
         stepId: selectedApproval.stepid,
@@ -93,7 +114,13 @@ const Approvals = () => {
       header: 'RFQ Target',
       render: (row) => (
         <div>
-          <span className="fw-semibold text-primary">{row.rfqnumber}</span>
+          <button 
+            className="btn btn-link p-0 text-start fw-bold text-decoration-none"
+            onClick={() => { setSelectedRfqId(row.targetid); setRfqDetailModalOpen(true); }}
+            title="Click to view all quotations & details"
+          >
+            {row.rfqnumber}
+          </button>
           <span className="small text-muted d-block">{row.rfqtitle}</span>
         </div>
       )
@@ -124,7 +151,13 @@ const Approvals = () => {
       header: 'RFQ Target',
       render: (row) => (
         <div>
-          <span className="fw-semibold text-dark">{row.rfqnumber}</span>
+          <button 
+            className="btn btn-link p-0 text-start fw-bold text-decoration-none"
+            onClick={() => { setSelectedRfqId(row.targetid); setRfqDetailModalOpen(true); }}
+            title="Click to view all quotations & details"
+          >
+            {row.rfqnumber}
+          </button>
           <span className="small text-muted d-block">{row.rfqtitle}</span>
         </div>
       )
@@ -195,74 +228,239 @@ const Approvals = () => {
 
       {/* Decision Remarks Dialog Modal */}
       {selectedApproval && (
-        <ConfirmDialog
+        <Modal
           isOpen={decisionModalOpen}
-          onClose={() => { setDecisionModalOpen(false); setSelectedApproval(null); setRemarks(''); }}
-          onConfirm={confirmDecision}
-          title={`${targetStatus} Procurement Workflow?`}
-          message={
-            <div>
-              <p>Are you sure you want to change status to <strong>{targetStatus}</strong> for RFQ reference: <strong>{selectedApproval.rfqnumber}</strong> ({selectedApproval.rfqtitle})?</p>
-              
-              {/* Timeline Visualizer */}
-              {selectedApproval.workflowtype === 'RFQ_Publish' ? (
-                <div className="my-4 p-3 border rounded bg-light">
-                  <label className="form-label fw-bold text-dark small mb-2 d-block">RFQ Publish Approval Timeline</label>
-                  <div className="d-flex align-items-center justify-content-between small text-center text-muted px-2 position-relative">
-                    <div style={{ position: 'absolute', top: '10px', left: '10%', right: '10%', height: '2px', backgroundColor: '#e2e8f0', zIndex: 0 }} />
-                    <div className="z-1 bg-light px-2">
-                      <span className="badge rounded-circle bg-success mb-1" style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
-                      <span className="d-block small fw-semibold text-dark">1. Draft</span>
-                    </div>
-                    <div className="z-1 bg-light px-2">
-                      <span className="badge rounded-circle bg-warning text-dark mb-1" style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>⚙</span>
-                      <span className="d-block small fw-semibold text-dark">2. Pending Approval</span>
-                    </div>
-                    <div className="z-1 bg-light px-2">
-                      <span className="badge rounded-circle bg-secondary mb-1" style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>3</span>
-                      <span className="d-block small">3. Published</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="my-4 p-3 border rounded bg-light">
-                  <label className="form-label fw-bold text-dark small mb-2 d-block">Quotation Evaluation Approval Timeline</label>
-                  <div className="d-flex align-items-center justify-content-between small text-center text-muted px-2 position-relative">
-                    <div style={{ position: 'absolute', top: '10px', left: '10%', right: '10%', height: '2px', backgroundColor: '#e2e8f0', zIndex: 0 }} />
-                    <div className="z-1 bg-light px-2">
-                      <span className="badge rounded-circle bg-success mb-1" style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
-                      <span className="d-block small fw-semibold text-dark">1. Published</span>
-                    </div>
-                    <div className="z-1 bg-light px-2">
-                      <span className="badge rounded-circle bg-success mb-1" style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
-                      <span className="d-block small fw-semibold text-dark">2. Closed</span>
-                    </div>
-                    <div className="z-1 bg-light px-2">
-                      <span className="badge rounded-circle bg-warning text-dark mb-1" style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>⚙</span>
-                      <span className="d-block small fw-semibold text-dark">3. Evaluation</span>
-                    </div>
-                    <div className="z-1 bg-light px-2">
-                      <span className="badge rounded-circle bg-secondary mb-1" style={{ width: '22px', height: '22px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>4</span>
-                      <span className="d-block small">4. Issued PO</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <Textarea
-                label="Add remarks or justification notes (Mandatory on Reject)"
-                placeholder="Describe reason for decision..."
-                value={remarks}
-                onChange={setRemarks}
-                rows={3}
-                required={targetStatus === 'Rejected'}
-              />
+          onClose={() => { setDecisionModalOpen(false); setSelectedApproval(null); setRemarks(''); setValidationError(''); }}
+          title={`${targetStatus === 'Approved' ? 'Approve' : 'Reject'} Procurement Workflow?`}
+          footer={
+            <div className="d-flex justify-content-end gap-2 w-100">
+              <Button 
+                variant="light" 
+                onClick={() => { setDecisionModalOpen(false); setSelectedApproval(null); setRemarks(''); setValidationError(''); }} 
+                disabled={processDecisionMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant={targetStatus === 'Rejected' ? 'danger' : 'success'} 
+                onClick={confirmDecision}
+                isLoading={processDecisionMutation.isPending}
+              >
+                Confirm {targetStatus}
+              </Button>
             </div>
           }
-          confirmText={`Confirm ${targetStatus}`}
-          isDanger={targetStatus === 'Rejected'}
-          isLoading={processDecisionMutation.isPending}
-        />
+        >
+          <div className="d-flex flex-column gap-3">
+            {/* Top Status Alert Card */}
+            <div className={`p-3 rounded-3 border d-flex gap-3 align-items-start ${
+              targetStatus === 'Approved' 
+                ? 'bg-success-subtle border-success-subtle text-success-emphasis' 
+                : 'bg-danger-subtle border-danger-subtle text-danger-emphasis'
+            }`}>
+              <div className="rounded-circle p-2 d-flex align-items-center justify-content-center bg-white shadow-sm" style={{ width: '38px', height: '38px', flexShrink: 0 }}>
+                <i className={`bi bi-${targetStatus === 'Approved' ? 'check-circle-fill text-success' : 'exclamation-triangle-fill text-danger'}`} style={{ fontSize: '1.2rem' }} />
+              </div>
+              <div>
+                <p className="mb-1 fw-bold text-dark">
+                  Change status to <span className={targetStatus === 'Approved' ? 'text-success' : 'text-danger'}>{targetStatus}</span>
+                </p>
+                <p className="text-secondary small mb-0">
+                  Are you sure you want to change status to <strong>{targetStatus}</strong> for RFQ reference: <strong>{selectedApproval.rfqnumber}</strong> ({selectedApproval.rfqtitle})?
+                </p>
+              </div>
+            </div>
+
+            {/* Timeline Visualizer */}
+            {selectedApproval.workflowtype === 'RFQ_Publish' ? (
+              <div className="p-3 border rounded-3 bg-light-subtle shadow-sm">
+                <label className="form-label fw-bold text-secondary small mb-3 d-block">
+                  <i className="bi bi-diagram-3 me-2" />RFQ Publish Approval Timeline
+                </label>
+                <div className="d-flex align-items-center justify-content-between small text-center text-muted px-2 position-relative">
+                  <div style={{ position: 'absolute', top: '16px', left: '10%', right: '10%', height: '3px', backgroundColor: '#e2e8f0', zIndex: 0 }} />
+                  
+                  {/* Step 1 */}
+                  <div className="z-1 bg-white px-2 rounded border py-1 shadow-sm timeline-step">
+                    <span className="badge rounded-circle bg-success mb-1" style={{ width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                    <span className="d-block small fw-bold text-dark">1. Draft</span>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="z-1 bg-white px-2 rounded border border-warning py-1 shadow-sm timeline-step">
+                    <span className="badge rounded-circle bg-warning text-dark mb-1" style={{ width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><i className="bi bi-clock-fill" /></span>
+                    <span className="d-block small fw-bold text-dark">2. Pending Approval</span>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="z-1 bg-white px-2 rounded border py-1 shadow-sm opacity-75 timeline-step">
+                    <span className="badge rounded-circle bg-secondary mb-1" style={{ width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>3</span>
+                    <span className="d-block small text-muted">3. Published</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 border rounded-3 bg-light-subtle shadow-sm">
+                <label className="form-label fw-bold text-secondary small mb-3 d-block">
+                  <i className="bi bi-diagram-3 me-2" />Quotation Evaluation Approval Timeline
+                </label>
+                <div className="d-flex align-items-center justify-content-between small text-center text-muted px-2 position-relative">
+                  <div style={{ position: 'absolute', top: '16px', left: '10%', right: '10%', height: '3px', backgroundColor: '#e2e8f0', zIndex: 0 }} />
+                  
+                  {/* Step 1 */}
+                  <div className="z-1 bg-white px-2 rounded border py-1 shadow-sm timeline-step">
+                    <span className="badge rounded-circle bg-success mb-1" style={{ width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                    <span className="d-block small fw-bold text-dark">1. Published</span>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="z-1 bg-white px-2 rounded border py-1 shadow-sm timeline-step">
+                    <span className="badge rounded-circle bg-success mb-1" style={{ width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                    <span className="d-block small fw-bold text-dark">2. Closed</span>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="z-1 bg-white px-2 rounded border border-warning py-1 shadow-sm timeline-step">
+                    <span className="badge rounded-circle bg-warning text-dark mb-1" style={{ width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><i className="bi bi-gear-fill spin-slow" /></span>
+                    <span className="d-block small fw-bold text-dark">3. Evaluation</span>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="z-1 bg-white px-2 rounded border py-1 shadow-sm opacity-75 timeline-step">
+                    <span className="badge rounded-circle bg-secondary mb-1" style={{ width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>4</span>
+                    <span className="d-block small text-muted">4. Issued PO</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-2">
+              <Textarea
+                label="Add remarks or justification notes"
+                placeholder="Describe reason for decision..."
+                value={remarks}
+                onChange={(e) => {
+                  setRemarks(e.target.value);
+                  if (e.target.value.trim()) setValidationError('');
+                }}
+                rows={3}
+                required={targetStatus === 'Rejected'}
+                error={validationError}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* RFQ Target / Quotations Review Modal */}
+      {rfqDetailModalOpen && (
+        <Modal
+          isOpen={rfqDetailModalOpen}
+          onClose={() => { setRfqDetailModalOpen(false); setSelectedRfqId(null); }}
+          title={`Quotations Review - RFQ: ${rfqDetail?.rfqnumber || ''}`}
+          size="lg"
+        >
+          {rfqDetailLoading ? (
+            <Loader text="Loading quotation details..." />
+          ) : rfqDetail ? (
+            <div>
+              <div className="mb-4">
+                <h5 className="fw-bold mb-1">{rfqDetail.title}</h5>
+                <p className="text-muted small mb-0">{rfqDetail.description}</p>
+              </div>
+
+              <div className="row g-4 mb-4">
+                <div className="col-md-6 border-end">
+                  <h6 className="fw-bold text-secondary text-uppercase small">Procurement Details</h6>
+                  <table className="table table-sm table-borderless small">
+                    <tbody>
+                      <tr>
+                        <td className="text-muted py-1" style={{ width: '120px' }}>Quantity:</td>
+                        <td className="fw-semibold py-1">{rfqDetail.quantity} {rfqDetail.unit || 'Units'}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-muted py-1">Deadline Date:</td>
+                        <td className="fw-semibold text-danger py-1">{new Date(rfqDetail.deadline).toLocaleDateString()}</td>
+                      </tr>
+                      <tr>
+                        <td className="text-muted py-1">Current Status:</td>
+                        <td className="py-1">
+                          <Badge variant={rfqDetail.status === 'Published' ? 'primary' : 'warning'}>
+                            {rfqDetail.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="col-md-6">
+                  <h6 className="fw-bold text-secondary text-uppercase small">Invited Suppliers ({rfqDetail.assignedVendors?.length || 0})</h6>
+                  <div className="d-flex flex-wrap gap-2 mt-2">
+                    {rfqDetail.assignedVendors?.map(v => (
+                      <div key={v.id} className="border rounded py-1 px-2 bg-light d-flex align-items-center gap-1">
+                        <i className="bi bi-shop text-primary small" />
+                        <span className="small fw-semibold" style={{ fontSize: '0.8rem' }}>{v.companyname}</span>
+                        <span className="badge bg-warning text-dark px-1 py-0" style={{ fontSize: '0.7rem' }}>{v.rating}★</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h6 className="fw-bold text-secondary text-uppercase small mb-3">Quotations Comparison Report</h6>
+                {rfqDetail.quotations && rfqDetail.quotations.length > 0 ? (
+                  <div className="table-responsive border rounded bg-white">
+                    <table className="table table-hover align-middle mb-0 small">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Vendor Supplier</th>
+                          <th>Total Price</th>
+                          <th>Delivery Timeline</th>
+                          <th>Quotation Status</th>
+                          <th>Selection Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rfqDetail.quotations.map(q => {
+                          const isSelectedByOfficer = q.status === 'Reviewed' || q.status === 'Accepted';
+                          return (
+                            <tr key={q.id} className={isSelectedByOfficer ? 'table-warning fw-semibold' : ''}>
+                              <td>
+                                <div className="fw-semibold text-dark">{q.companyname}</div>
+                                <div className="text-muted small">Rating: {q.vendorrating} ★</div>
+                              </td>
+                              <td className="fw-bold text-success">${parseFloat(q.totalprice).toLocaleString()}</td>
+                              <td>{q.deliverydays} days</td>
+                              <td>
+                                <Badge variant={q.status === 'Accepted' ? 'success' : q.status === 'Rejected' ? 'danger' : q.status === 'Reviewed' ? 'info' : 'warning'}>
+                                  {q.status}
+                                </Badge>
+                              </td>
+                              <td>
+                                {isSelectedByOfficer ? (
+                                  <span className="badge bg-warning text-dark border border-warning shadow-sm">
+                                    <i className="bi bi-star-fill me-1" /> Selected by Officer
+                                  </span>
+                                ) : (
+                                  <span className="text-muted small">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-muted text-center p-4 border rounded bg-light mb-0">No quotations received yet for this RFQ.</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-danger">Failed to load details.</p>
+          )}
+        </Modal>
       )}
     </div>
   );

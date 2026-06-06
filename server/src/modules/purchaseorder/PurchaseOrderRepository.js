@@ -96,11 +96,15 @@ export default class PurchaseOrderRepository extends BaseRepository {
 
     if (search && searchColumns.length > 0) {
       const searchClauses = [];
-      const sanitizedSearchColumns = searchColumns.filter(col => this.isColumnAllowed(col));
+      const sanitizedSearchColumns = searchColumns.filter(col => this.isColumnAllowed(col) || col === 'companyname');
       
       if (sanitizedSearchColumns.length > 0) {
         for (const col of sanitizedSearchColumns) {
-          searchClauses.push(`po."${col}" ILIKE $${paramCounter}`);
+          if (col === 'companyname') {
+            searchClauses.push(`v."companyname" ILIKE $${paramCounter}`);
+          } else {
+            searchClauses.push(`po."${col}" ILIKE $${paramCounter}`);
+          }
         }
         whereClauses.push(`(${searchClauses.join(' OR ')})`);
         values.push(`%${search}%`);
@@ -158,7 +162,8 @@ export default class PurchaseOrderRepository extends BaseRepository {
    */
   async findDetail(id) {
     const poSql = `
-      SELECT po.*, v.companyname, v.email as vendoremail, v.phone as vendorphone, v.address as vendoraddress
+      SELECT po.*, v.companyname, v.email as vendoremail, v.phone as vendorphone, v.address as vendoraddress,
+             (SELECT i.id FROM invoice i WHERE i.purchaseorderid = po.id LIMIT 1) as invoiceid
       FROM "${this.tableName}" po
       JOIN vendor v ON po.vendorid = v.id
       WHERE po.id = $1

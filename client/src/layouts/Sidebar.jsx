@@ -16,7 +16,8 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       label: 'Vendors',
       icon: 'shop',
       path: '/vendors',
-      permission: 'viewusers'
+      permission: 'viewusers',
+      hideForProcurement: true
     },
     {
       label: 'RFQs',
@@ -30,7 +31,8 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       icon: 'file-ruled',
       path: '/quotations',
       permission: 'dashboard',
-      hideForAdmin: true
+      hideForAdmin: true,
+      hideForManager: true
     },
     {
       label: 'Approvals',
@@ -57,12 +59,6 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       icon: 'graph-up-arrow',
       path: '/reports',
       permission: 'viewstatistics'
-    },
-    {
-      label: 'Activity Logs',
-      icon: 'clock-history',
-      path: '/activity-logs',
-      permission: 'viewactivitylogs'
     },
     {
       label: 'User Management',
@@ -108,6 +104,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             }
 
             if (item.managerAdminOnly && !['Manager', 'Admin'].includes(user?.rolename)) {
+              return null;
+            }
+
+            if (item.hideForProcurement && user?.rolename === 'ProcurementOfficer') {
+              return null;
+            }
+
+            if (item.hideForManager && user?.rolename === 'Manager') {
               return null;
             }
 

@@ -14,6 +14,8 @@ export default class QuotationController extends BaseController {
     this.submit = this.submit.bind(this);
     this.compare = this.compare.bind(this);
     this.getAll = this.getAll.bind(this);
+    this.officerApprove = this.officerApprove.bind(this);
+    this.vendorAccept = this.vendorAccept.bind(this);
   }
 
   async submit(req, res, next) {
@@ -77,6 +79,28 @@ export default class QuotationController extends BaseController {
         200,
         result.pagination
       );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async officerApprove(req, res, next) {
+    try {
+      const { id } = req.params;
+      const record = await this.service.approveQuotationOffer(id);
+      await auditRepo.logEvent({ userid: req.user.id, action: 'officer_approve', module: 'quotation', newvalue: { quotationId: id } });
+      return this.sendSuccess(res, record, 'Quotation offer approved by Procurement Officer successfully.');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async vendorAccept(req, res, next) {
+    try {
+      const { id } = req.params;
+      const record = await this.service.acceptQuotationOffer(id);
+      await auditRepo.logEvent({ userid: req.user.id, action: 'vendor_accept', module: 'quotation', newvalue: { quotationId: id } });
+      return this.sendSuccess(res, record, 'Quotation offer accepted by Vendor successfully. PO and Invoice auto-generated.');
     } catch (error) {
       next(error);
     }

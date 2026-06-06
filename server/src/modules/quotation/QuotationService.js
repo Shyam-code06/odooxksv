@@ -138,4 +138,35 @@ export default class QuotationService extends BaseService {
       }
     };
   }
+
+  /**
+   * Procurement Officer approves/sends the quotation offer
+   */
+  async approveQuotationOffer(id) {
+    const quotation = await this.findById(id);
+    if (quotation.status !== 'Accepted') {
+      throw new AppError('Only manager-approved quotations can be approved by the procurement officer.', 400);
+    }
+    await this.repository.update(id, { officerapproved: true });
+    return this.findById(id);
+  }
+
+  /**
+   * Vendor accepts the quotation offer
+   */
+  async acceptQuotationOffer(id) {
+    const quotation = await this.findById(id);
+    if (!quotation.officerapproved) {
+      throw new AppError('This offer has not been approved and sent by the procurement officer yet.', 400);
+    }
+
+    if (quotation.vendoraccepted) {
+      throw new AppError('This offer has already been accepted.', 400);
+    }
+    
+    // 1. Update vendoraccepted to true
+    await this.repository.update(id, { vendoraccepted: true });
+
+    return this.findById(id);
+  }
 }

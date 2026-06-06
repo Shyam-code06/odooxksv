@@ -21,4 +21,10 @@ router.post('/', rbacMiddleware('dashboard'), quotationController.submit);
 // GET /api/quotation/compare/:rfqId - Compare quotations (Procurement Officer / Admin / Manager)
 router.get('/compare/:rfqId', rbacMiddleware('dashboard'), quotationController.compare);
 
+// POST /api/quotation/:id/officer-approve - Officer approves quotation offer (Procurement Officer / Admin)
+router.post('/:id/officer-approve', rbacMiddleware('viewusers'), quotationController.officerApprove);
+
+// POST /api/quotation/:id/vendor-accept - Vendor accepts quotation offer (Vendor only)
+router.post('/:id/vendor-accept', quotationController.vendorAccept);
+
 export default router;

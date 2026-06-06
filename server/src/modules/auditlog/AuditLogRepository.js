@@ -57,7 +57,8 @@ export default class AuditLogRepository extends BaseRepository {
     const countSql = `
       SELECT COUNT(*) 
       FROM "${this.tableName}" al 
-      LEFT JOIN "user" u ON al.userid = u.id 
+      JOIN "user" u ON al.userid = u.id 
+      JOIN "role" r ON u.roleid = r.id AND r.name IN ('Manager', 'ProcurementOfficer')
       ${whereSql}
     `;
     const countResult = await this.executeQuery(countSql, values);
@@ -78,7 +79,8 @@ export default class AuditLogRepository extends BaseRepository {
     const dataSql = `
       SELECT al.*, u.username, u.firstname, u.lastname
       FROM "${this.tableName}" al
-      LEFT JOIN "user" u ON al.userid = u.id
+      JOIN "user" u ON al.userid = u.id
+      JOIN "role" r ON u.roleid = r.id AND r.name IN ('Manager', 'ProcurementOfficer')
       ${whereSql} 
       ORDER BY ${safeSortBy} ${safeSortOrder} 
       LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}

@@ -11,7 +11,9 @@ import FormInput from '../common/components/Form/FormInput';
 import Button from '../common/components/Button';
 
 const loginSchema = yup.object().shape({
-  username: yup.string().required('Username is required'),
+  email: yup.string()
+    .required('Email is required')
+    .matches(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Please enter a valid email format (e.g. name@domain.com)'),
   password: yup.string().required('Password is required'),
 });
 
@@ -23,7 +25,7 @@ const Login = () => {
 
   const methods = useForm({
     resolver: yupResolver(loginSchema),
-    defaultValues: { username: '', password: '' }
+    defaultValues: { email: '', password: '' }
   });
 
   const onSubmit = async (data) => {
@@ -31,7 +33,7 @@ const Login = () => {
     setLoading(true);
     try {
       const response = await axios.post('http://localhost:5000/api/auth/login', {
-        username: data.username,
+        email: data.email,
         password: data.password
       });
 
@@ -66,9 +68,9 @@ const Login = () => {
 
         <BaseForm methods={methods} onSubmit={onSubmit}>
           <FormInput 
-            name="username" 
-            label="Username" 
-            placeholder="Enter username" 
+            name="email" 
+            label="Email Address" 
+            placeholder="name@example.com" 
             required={true}
           />
           <FormInput 
@@ -88,9 +90,12 @@ const Login = () => {
             Sign In
           </Button>
         </BaseForm>
-        <div className="text-center mt-3">
-          <span className="text-muted small">Representing a supplier? </span>
-          <Link to="/register" className="text-primary small fw-semibold text-decoration-none">Register Vendor</Link>
+        <div className="text-center mt-3 d-flex flex-column gap-2">
+          <Link to="/forgot-password" className="text-primary small fw-semibold text-decoration-none">Forgot Password?</Link>
+          <div>
+            <span className="text-muted small">Representing a supplier? </span>
+            <Link to="/register" className="text-primary small fw-semibold text-decoration-none">Register Vendor</Link>
+          </div>
         </div>
       </div>
     </div>

@@ -11,6 +11,20 @@ export default class PurchaseOrderService extends BaseService {
   }
 
   /**
+   * Override update to handle associated invoice transition on completion
+   */
+  async update(id, data) {
+    const record = await super.update(id, data);
+    if (data.status === 'Completed') {
+      await pool.query(
+        "UPDATE invoice SET status = 'Paid', updatedat = CURRENT_TIMESTAMP WHERE purchaseorderid = $1",
+        [id]
+      );
+    }
+    return record;
+  }
+
+  /**
    * Auto-generate a Purchase Order from an accepted quotation
    */
   async generatePOFromQuotation(quotationId, rfqId) {
@@ -93,7 +107,7 @@ export default class PurchaseOrderService extends BaseService {
    * Overridden findAll with PO search columns
    */
   async findAll(options = {}) {
-    const searchColumns = ['ponumber'];
+    const searchColumns = ['ponumber', 'companyname'];
     return this.repository.findAll({
       ...options,
       searchColumns

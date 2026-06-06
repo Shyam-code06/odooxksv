@@ -12,6 +12,8 @@ export default class QuotationRepository extends BaseRepository {
       'notes',
       'attachmenturl',
       'status',
+      'officerapproved',
+      'vendoraccepted',
       'createdat',
       'updatedat'
     ]);

@@ -10,20 +10,36 @@ import Button from '../common/components/Button';
 import Modal from '../common/components/Modal';
 import Loader from '../common/components/Loader';
 import { useAuth } from '../common/contexts/AuthContext';
+import FilterBar from '../common/components/FilterBar';
+import SearchBar from '../common/components/SearchBar';
 
 const PurchaseOrders = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isVendor = user?.rolename === 'Vendor';
+  const isProcurementOfficer = user?.rolename === 'ProcurementOfficer' || user?.rolename === 'Admin';
 
   const [selectedPoId, setSelectedPoId] = useState(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('createdat');
+  const [sortOrder, setSortOrder] = useState('DESC');
+
   // 1. Fetch Purchase Orders
   const { data: poResponse, isLoading, isFetching } = useQuery({
-    queryKey: ['purchase-orders', user?.rolename],
+    queryKey: ['purchase-orders', page, limit, search, sortBy, sortOrder],
     queryFn: async () => {
-      const res = await axios.get('http://localhost:5000/api/purchaseorder');
+      const params = {
+        page,
+        limit,
+        search,
+        sortBy,
+        sortOrder
+      };
+      const res = await axios.get('http://localhost:5000/api/purchaseorder', { params });
       return res.data;
     }
   });
@@ -44,12 +60,26 @@ const PurchaseOrders = () => {
     mutationFn: (poId) => axios.post('http://localhost:5000/api/invoice', { purchaseorderid: poId }),
     onSuccess: () => {
       queryClient.invalidateQueries(['purchase-orders']);
+      const emailText = poDetail?.vendoremail ? ` to ${poDetail.vendoremail}` : '';
       setDetailModalOpen(false);
       setSelectedPoId(null);
-      alert('Invoice generated successfully! You can view it under the Invoices page.');
+      alert(`Invoice generated successfully and sent${emailText} successfully!`);
     },
     onError: (err) => {
       alert(err.response?.data?.message || 'Failed to generate invoice');
+    }
+  });
+
+  // Mutation: Update PO Status (Accept, Reject, Deliver)
+  const updatePoStatusMutation = useMutation({
+    mutationFn: ({ poId, status }) => axios.put(`http://localhost:5000/api/purchaseorder/${poId}`, { status }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries(['purchase-orders']);
+      queryClient.invalidateQueries(['po-detail', selectedPoId]);
+      alert(`Purchase Order status updated to ${variables.status} successfully!`);
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || 'Failed to update Purchase Order status');
     }
   });
 
@@ -74,17 +104,19 @@ const PurchaseOrders = () => {
     {
       key: 'ponumber',
       header: 'PO Number',
+      sortable: true,
       render: (row) => <span className="fw-semibold text-primary">{row.ponumber}</span>
     },
-    { key: 'companyname', header: 'Vendor Supplier' },
-    { key: 'subtotal', header: 'Subtotal', render: (row) => `$${parseFloat(row.subtotal).toLocaleString()}` },
-    { key: 'totalamount', header: 'Total (inc. GST)', render: (row) => <span className="fw-bold text-dark">${parseFloat(row.totalamount).toLocaleString()}</span> },
+    { key: 'companyname', header: 'Vendor Supplier', sortable: false },
+    { key: 'subtotal', header: 'Subtotal', sortable: true, render: (row) => `$${parseFloat(row.subtotal).toLocaleString()}` },
+    { key: 'totalamount', header: 'Total (inc. GST)', sortable: true, render: (row) => <span className="fw-bold text-dark">${parseFloat(row.totalamount).toLocaleString()}</span> },
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
       render: (row) => <Badge variant={getStatusBadgeVariant(row.status)}>{row.status}</Badge>
     },
-    { key: 'createdat', header: 'Issued Date', render: (row) => new Date(row.createdat).toLocaleDateString() },
+    { key: 'createdat', header: 'Issued Date', sortable: true, render: (row) => new Date(row.createdat).toLocaleDateString() },
     {
       key: 'actions',
       header: 'Actions',
@@ -106,11 +138,32 @@ const PurchaseOrders = () => {
         ]}
       />
 
+      <FilterBar onClear={() => {
+        setSearch('');
+        setPage(1);
+      }}>
+        <SearchBar
+          value={search}
+          onChange={(val) => { setSearch(val); setPage(1); }}
+          placeholder="Search PO Number, Vendor..."
+          style={{ maxWidth: '280px' }}
+        />
+      </FilterBar>
+
       <Card title="Issued Purchase Orders">
         <BaseTable
           columns={columns}
           data={poResponse?.data || []}
           loading={isLoading || isFetching}
+          pagination={poResponse?.meta || null}
+          onPageChange={setPage}
+          onLimitChange={setLimit}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSort={(key, order) => {
+            setSortBy(key);
+            setSortOrder(order);
+          }}
         />
       </Card>
 
@@ -133,14 +186,57 @@ const PurchaseOrders = () => {
                 </div>
               </div>
               
-              {/* Option to create invoice from PO */}
-              <Button 
-                variant="success" 
-                onClick={() => createInvoiceMutation.mutate(poDetail.id)}
-                loading={createInvoiceMutation.isPending}
-              >
-                <i className="bi bi-receipt me-1" /> Generate Invoice
-              </Button>
+              <div className="d-flex gap-2">
+                {/* Vendor Actions: Accept / Reject */}
+                {isVendor && poDetail.status === 'Issued' && (
+                  <>
+                    <Button 
+                      variant="success" 
+                      onClick={() => updatePoStatusMutation.mutate({ poId: poDetail.id, status: 'Acknowledged' })}
+                      loading={updatePoStatusMutation.isPending}
+                    >
+                      <i className="bi bi-check-circle me-1" /> Accept Order
+                    </Button>
+                    <Button 
+                      variant="danger" 
+                      onClick={() => updatePoStatusMutation.mutate({ poId: poDetail.id, status: 'Cancelled' })}
+                      loading={updatePoStatusMutation.isPending}
+                    >
+                      <i className="bi bi-x-circle me-1" /> Reject Order
+                    </Button>
+                  </>
+                )}
+
+                {/* Procurement Officer Actions: Delivery Verification */}
+                {isProcurementOfficer && poDetail.status === 'Acknowledged' && (
+                  <Button 
+                    variant="primary" 
+                    onClick={() => updatePoStatusMutation.mutate({ poId: poDetail.id, status: 'Completed' })}
+                    loading={updatePoStatusMutation.isPending}
+                  >
+                    <i className="bi bi-truck me-1" /> Verify & Mark Delivered
+                  </Button>
+                )}
+
+                {/* Procurement Officer Actions: Generate Invoice */}
+                {isProcurementOfficer && poDetail.status === 'Completed' && (
+                  poDetail.invoiceid ? (
+                    <Badge variant="success">
+                      <i className="bi bi-file-earmark-check me-1" /> Invoice Issued
+                    </Badge>
+                  ) : (
+                    <Button 
+                      variant="primary" 
+                      onClick={() => createInvoiceMutation.mutate(poDetail.id)}
+                      loading={createInvoiceMutation.isPending}
+                    >
+                      <i className="bi bi-file-earmark-plus me-1" /> Generate Invoice
+                    </Button>
+                  )
+                )}
+
+
+              </div>
             </div>
 
             {/* Vendor & Client info */}

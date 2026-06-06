@@ -15,6 +15,9 @@ router.get('/', poController.getAll);
 // GET /api/purchaseorder/:id - Get PO detail
 router.get('/:id', poController.getById);
 
+// PUT /api/purchaseorder/:id - Update PO details (status transitions)
+router.put('/:id', poController.update);
+
 // POST /api/purchaseorder/generate - Generate PO manually
 router.post('/generate', rbacMiddleware('viewusers'), poController.generatePO);
 

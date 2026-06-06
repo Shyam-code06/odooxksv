@@ -1,5 +1,6 @@
 import BaseController from '../../common/BaseController.js';
 import InvoiceService from './InvoiceService.js';
+import { AppError } from '../../utils/customErrors.js';
 
 const invoiceService = new InvoiceService();
 
@@ -12,6 +13,9 @@ export default class InvoiceController extends BaseController {
 
   async create(req, res, next) {
     try {
+      if (req.user.rolename !== 'ProcurementOfficer') {
+        throw new AppError('Only Procurement Officers can generate invoices.', 403);
+      }
       const { purchaseorderid } = req.body;
       const record = await this.service.createInvoiceFromPO(purchaseorderid);
       return this.sendSuccess(res, record, 'Invoice generated successfully', 201);

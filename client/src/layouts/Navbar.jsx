@@ -95,7 +95,16 @@ const Navbar = ({ collapsed, setCollapsed }) => {
                         className={`list-group-item list-group-item-action p-3 border-bottom-0 border-top ${n.isread ? 'bg-white' : 'bg-primary bg-opacity-10'}`}
                       >
                         <div className="d-flex w-100 justify-content-between align-items-start mb-1">
-                          <strong className="mb-1 small text-dark">{n.type}</strong>
+                          <div className="d-flex align-items-center gap-2">
+                            {!n.isread && (
+                              <span 
+                                className="d-inline-block rounded-circle bg-primary" 
+                                style={{ width: '8px', height: '8px', flexShrink: 0 }} 
+                                title="New"
+                              />
+                            )}
+                            <strong className="mb-0 small text-dark">{n.type}</strong>
+                          </div>
                           <small className="text-muted" style={{ fontSize: '0.7rem' }}>
                             {new Date(n.createdat).toLocaleDateString()}
                           </small>
@@ -155,13 +164,6 @@ const Navbar = ({ collapsed, setCollapsed }) => {
                   className="position-absolute end-0 mt-2 bg-white rounded-3 shadow-lg border p-2 text-start" 
                   style={{ zIndex: 1000, width: '200px' }}
                 >
-                  <Link 
-                    to="/profile" 
-                    className="dropdown-item py-2 px-3 rounded-2 text-dark text-decoration-none d-block hover-bg-light"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    <i className="bi bi-person me-2 text-muted" /> My Profile
-                  </Link>
                   <Link 
                     to="/change-password" 
                     className="dropdown-item py-2 px-3 rounded-2 text-dark text-decoration-none d-block hover-bg-light"

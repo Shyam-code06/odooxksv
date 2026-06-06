@@ -11,13 +11,17 @@ import Button from '../common/components/Button';
 
 const registerSchema = yup.object().shape({
   username: yup.string().required('Username is required').min(3, 'At least 3 characters'),
-  email: yup.string().required('Email is required').email('Must be a valid email'),
+  email: yup.string()
+    .required('Email is required')
+    .matches(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Must be a valid email format (e.g. name@domain.com)'),
   password: yup.string().required('Password is required').min(6, 'At least 6 characters'),
   firstname: yup.string().required('First name is required'),
   lastname: yup.string().required('Last name is required'),
   companyname: yup.string().required('Company name is required'),
   category: yup.string().required('Vendor category is required'),
-  phone: yup.string().required('Phone number is required'),
+  phone: yup.string()
+    .required('Phone number is required')
+    .matches(/^\d{10}$/, 'Mobile number must be exactly 10 digits'),
   address: yup.string().required('Business address is required'),
   gstnumber: yup.string().nullable().test(
     'gst-format',
@@ -137,7 +141,7 @@ const Register = () => {
               <FormInput name="email" label="Business Email" type="email" placeholder="sales@company.com" required={true} />
             </div>
             <div className="col-12 col-md-6">
-              <FormInput name="phone" label="Contact Phone" placeholder="+91 99999-99999" required={true} />
+              <FormInput name="phone" label="Contact Phone" placeholder="e.g. 9876543210 (10 digits)" required={true} />
             </div>
           </div>
 

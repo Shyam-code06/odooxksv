@@ -95,6 +95,18 @@ const Quotations = () => {
     }
   });
 
+  // Mutation: Vendor Accept Quotation Offer (Vendor)
+  const vendorAcceptMutation = useMutation({
+    mutationFn: (quotationId) => axios.post(`http://localhost:5000/api/quotation/${quotationId}/vendor-accept`),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['quotations-list']);
+      alert('Offer accepted successfully! Purchase Order and Invoice have been auto-generated.');
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || 'Failed to accept offer');
+    }
+  });
+
   // Mutation: Submit chosen Quotation for Manager Approval (Procurement Officer)
   const submitApprovalMutation = useMutation({
     mutationFn: (approvalReq) => axios.post('http://localhost:5000/api/approval/submit', approvalReq),
@@ -217,7 +229,29 @@ const Quotations = () => {
         return <Badge variant={variant}>{row.status}</Badge>;
       }
     },
-    { key: 'createdat', header: 'Submitted On', render: (row) => new Date(row.createdat).toLocaleDateString() }
+    { key: 'createdat', header: 'Submitted On', render: (row) => new Date(row.createdat).toLocaleDateString() },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (row) => {
+        if (row.status === 'Accepted' && row.officerapproved) {
+          if (row.vendoraccepted) {
+            return <Badge variant="success">Offer Accepted (PO Issued)</Badge>;
+          }
+          return (
+            <Button 
+              variant="success" 
+              size="sm" 
+              onClick={() => vendorAcceptMutation.mutate(row.id)}
+              loading={vendorAcceptMutation.isPending}
+            >
+              <i className="bi bi-check-circle me-1" /> Accept Offer
+            </Button>
+          );
+        }
+        return <span className="text-muted small">-</span>;
+      }
+    }
   ];
 
   return (

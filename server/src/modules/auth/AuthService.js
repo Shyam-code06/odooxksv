@@ -11,6 +11,7 @@ import {
   NotFoundError,
   BadRequestError
 } from '../../utils/customErrors.js';
+import { sendEmail } from '../../utils/mailer.js';
 
 const userRepo = new UserRepository();
 const sessionRepo = new SessionRepository();
@@ -21,15 +22,22 @@ export default class AuthService {
   /**
    * Log user in, generate tokens, and audit session
    */
-  async login(username, password) {
-    if (!username || !password) {
-      throw new BadRequestError('Username and password are required.');
+  async login(identifier, password) {
+    if (!identifier || !password) {
+      throw new BadRequestError('Email and password are required.');
     }
 
-    // 1. Fetch user by username
-    const user = await userRepo.findByUsername(username);
+    // 1. Fetch user by email or username
+    let user = null;
+    if (identifier.includes('@')) {
+      user = await userRepo.findByEmail(identifier);
+    }
     if (!user) {
-      throw new UnauthorizedError('Invalid username or password.');
+      user = await userRepo.findByUsername(identifier);
+    }
+
+    if (!user) {
+      throw new UnauthorizedError('Invalid email or password.');
     }
 
     // 2. Check active status
@@ -40,7 +48,7 @@ export default class AuthService {
     // 3. Verify password
     const isMatch = await bcrypt.compare(password, user.passwordhash);
     if (!isMatch) {
-      throw new UnauthorizedError('Invalid username or password.');
+      throw new UnauthorizedError('Invalid email or password.');
     }
 
     // 4. Fetch roles and permissions
@@ -210,6 +218,18 @@ export default class AuthService {
       throw new BadRequestError('Required registration fields are missing.');
     }
 
+    // Validation for email format
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestError('Invalid or incomplete email format.');
+    }
+
+    // Validation for phone (exactly 10 digits)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      throw new BadRequestError('Mobile number must be exactly 10 digits.');
+    }
+
     // 1. Check duplicate username or email in users
     const existingUserByUsername = await userRepo.findByUsername(username);
     if (existingUserByUsername) {
@@ -287,6 +307,93 @@ export default class AuthService {
       user: safeUser,
       vendor: newVendor
     };
+  }
+
+  /**
+   * Request OTP for password reset
+   */
+  async forgotPassword(email) {
+    if (!email) {
+      throw new BadRequestError('Email address is required.');
+    }
+
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestError('Invalid or incomplete email format.');
+    }
+
+    // Find user by email
+    const user = await userRepo.findByEmail(email);
+    if (!user) {
+      throw new NotFoundError('Email does not exist.');
+    }
+
+    // Generate random 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpexpiresat = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
+
+    // Save to database
+    await userRepo.update(user.id, {
+      resetotp: otp,
+      resetotpexpiresat: otpexpiresat
+    });
+
+    // Send email
+    await sendEmail({
+      to: email,
+      subject: 'Password Reset OTP - VendorBridge ERP',
+      text: `Your password reset One-Time Password (OTP) is: ${otp}\n\nThis code will expire in 15 minutes.`,
+      html: `<p>Your password reset One-Time Password (OTP) is: <strong>${otp}</strong></p><p>This code will expire in 15 minutes.</p>`
+    });
+
+    return { message: 'OTP sent to your email address.' };
+  }
+
+  /**
+   * Reset password verifying OTP
+   */
+  async resetPassword(email, otp, newPassword) {
+    if (!email || !otp || !newPassword) {
+      throw new BadRequestError('Email, OTP, and new password are required.');
+    }
+
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestError('Invalid or incomplete email format.');
+    }
+
+    // Find user by email
+    const user = await userRepo.findByEmail(email);
+    if (!user) {
+      throw new NotFoundError('Email does not exist.');
+    }
+
+    // Verify OTP and expiry
+    if (!user.resetotp || user.resetotp !== otp || !user.resetotpexpiresat || new Date(user.resetotpexpiresat) < new Date()) {
+      throw new BadRequestError('Invalid or expired OTP.');
+    }
+
+    // Hash and update new password
+    const saltRounds = 10;
+    const passwordhash = await bcrypt.hash(newPassword, saltRounds);
+
+    await userRepo.update(user.id, {
+      passwordhash,
+      resetotp: null,
+      resetotpexpiresat: null
+    });
+
+    // Revoke all sessions
+    await sessionRepo.revokeUserSessions(user.id);
+
+    // Audit password reset event
+    await auditRepo.logEvent({
+      userid: user.id,
+      action: 'resetpassword',
+      module: 'auth'
+    });
+
+    return { message: 'Password has been reset successfully.' };
   }
 
   // Helper: Create Access Token JWT

@@ -37,8 +37,15 @@ const getRoleName = (roleid) => {
 const userFormSchema = yup.object().shape({
   firstname: yup.string().required('First name is required').max(100),
   lastname: yup.string().required('Last name is required').max(100),
-  email: yup.string().required('Email is required').email('Must be a valid email').max(255),
-  phonenumber: yup.string().nullable().max(50),
+  email: yup.string()
+    .required('Email is required')
+    .matches(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Must be a valid email format (e.g. name@domain.com)')
+    .max(255),
+  phonenumber: yup.string().nullable().test(
+    'is-10-digits',
+    'Mobile number must be exactly 10 digits',
+    value => !value || /^\d{10}$/.test(value)
+  ),
   username: yup.string().required('Username is required').min(3).max(100),
   roleid: yup.string().required('Role is required'),
   password: yup.string().when('$isEdit', {
@@ -362,7 +369,7 @@ const Users = () => {
           </div>
 
           <FormInput name="email" label="Email Address" type="email" placeholder="shyam@vendorbridge.com" required={true} />
-          <FormInput name="phonenumber" label="Phone Number" placeholder="+91 9999999999" />
+          <FormInput name="phonenumber" label="Phone Number" placeholder="e.g. 9876543210 (10 digits)" />
           <FormInput name="username" label="Username" placeholder="shyam_kb" required={true} />
           
           <FormSelect
