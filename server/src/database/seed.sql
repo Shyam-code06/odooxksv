@@ -42,6 +42,32 @@ INSERT INTO rolepermission (roleid, permissionid) VALUES
 ('d1b0337c-f230-4e1b-ae23-1d07b46ee334', '10000000-0000-0000-0000-000000000013')
 ON CONFLICT (roleid, permissionid) DO NOTHING;
 
+-- Insert Manager RolePermissions
+INSERT INTO rolepermission (roleid, permissionid) VALUES
+('4a1f13f1-d5d1-4cb5-827d-0d6bc9f00df9', '10000000-0000-0000-0000-000000000001'), -- login
+('4a1f13f1-d5d1-4cb5-827d-0d6bc9f00df9', '10000000-0000-0000-0000-000000000002'), -- logout
+('4a1f13f1-d5d1-4cb5-827d-0d6bc9f00df9', '10000000-0000-0000-0000-000000000003'), -- changepassword
+('4a1f13f1-d5d1-4cb5-827d-0d6bc9f00df9', '10000000-0000-0000-0000-000000000004'), -- dashboard
+('4a1f13f1-d5d1-4cb5-827d-0d6bc9f00df9', '10000000-0000-0000-0000-000000000013')  -- viewstatistics
+ON CONFLICT (roleid, permissionid) DO NOTHING;
+
+-- Insert ProcurementOfficer RolePermissions
+INSERT INTO rolepermission (roleid, permissionid) VALUES
+('e46a7be7-a9a3-41fa-8a8b-3e5e4071ecbd', '10000000-0000-0000-0000-000000000001'), -- login
+('e46a7be7-a9a3-41fa-8a8b-3e5e4071ecbd', '10000000-0000-0000-0000-000000000002'), -- logout
+('e46a7be7-a9a3-41fa-8a8b-3e5e4071ecbd', '10000000-0000-0000-0000-000000000003'), -- changepassword
+('e46a7be7-a9a3-41fa-8a8b-3e5e4071ecbd', '10000000-0000-0000-0000-000000000004'), -- dashboard
+('e46a7be7-a9a3-41fa-8a8b-3e5e4071ecbd', '10000000-0000-0000-0000-000000000007')  -- viewusers
+ON CONFLICT (roleid, permissionid) DO NOTHING;
+
+-- Insert Vendor RolePermissions
+INSERT INTO rolepermission (roleid, permissionid) VALUES
+('b78e1b3d-71b5-4b08-b0a3-bf2e8964d4b3', '10000000-0000-0000-0000-000000000001'), -- login
+('b78e1b3d-71b5-4b08-b0a3-bf2e8964d4b3', '10000000-0000-0000-0000-000000000002'), -- logout
+('b78e1b3d-71b5-4b08-b0a3-bf2e8964d4b3', '10000000-0000-0000-0000-000000000003'), -- changepassword
+('b78e1b3d-71b5-4b08-b0a3-bf2e8964d4b3', '10000000-0000-0000-0000-000000000004')  -- dashboard
+ON CONFLICT (roleid, permissionid) DO NOTHING;
+
 -- Insert default Administrator User
 -- password is Admin@123, hashed using bcrypt (rounds=10)
 INSERT INTO "user" (id, firstname, lastname, email, phonenumber, username, passwordhash, roleid, isactive) VALUES

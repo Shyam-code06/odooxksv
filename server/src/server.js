@@ -1,13 +1,21 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+
 import dotenv from 'dotenv';
 import pool from './config/db.js';
 import authRoutes from './modules/auth/authRoutes.js';
 import userRoutes from './modules/user/userRoutes.js';
 import auditLogRoutes from './modules/auditlog/auditLogRoutes.js';
 import dashboardRoutes from './modules/dashboard/dashboardRoutes.js';
+import vendorRoutes from './modules/vendor/vendorRoutes.js';
+import rfqRoutes from './modules/rfq/rfqRoutes.js';
+import quotationRoutes from './modules/quotation/quotationRoutes.js';
+import approvalRoutes from './modules/approval/approvalRoutes.js';
+import purchaseOrderRoutes from './modules/purchaseorder/purchaseOrderRoutes.js';
+import invoiceRoutes from './modules/invoice/invoiceRoutes.js';
+import notificationRoutes from './modules/notification/notificationRoutes.js';
+import reportRoutes from './modules/report/reportRoutes.js';
 import { AppError } from './utils/customErrors.js';
 
 dotenv.config();
@@ -31,26 +39,21 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 3. RATE LIMITING (Prevent DDoS and Bruteforce)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  message: {
-    success: false,
-    message: 'Too many requests from this IP, please try again after 15 minutes.',
-    data: null,
-    meta: null
-  }
-});
-app.use('/api/', limiter);
+// Removed rate limiting as per user request
 
 // 4. ROUTING
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/auditlog', auditLogRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/vendor', vendorRoutes);
+app.use('/api/rfq', rfqRoutes);
+app.use('/api/quotation', quotationRoutes);
+app.use('/api/approval', approvalRoutes);
+app.use('/api/purchaseorder', purchaseOrderRoutes);
+app.use('/api/invoice', invoiceRoutes);
+app.use('/api/notification', notificationRoutes);
+app.use('/api/report', reportRoutes);
 
 // Health Check Route
 app.get('/health', async (req, res) => {

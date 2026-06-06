@@ -58,7 +58,7 @@ export default class UserService extends BaseService {
   }
 
   async update(id, data, actorUserId) {
-    const { firstname, lastname, email, phonenumber, roleid, isactive } = data;
+    const { firstname, lastname, email, phonenumber, username, roleid, isactive } = data;
     
     const currentUser = await this.findById(id);
 
@@ -69,11 +69,19 @@ export default class UserService extends BaseService {
       }
     }
 
+    if (username && username !== currentUser.username) {
+      const existingUsername = await this.repository.findByUsername(username);
+      if (existingUsername) {
+        throw new ConflictError('Username is already taken by another account.');
+      }
+    }
+
     const updatedUser = await this.repository.update(id, {
       firstname,
       lastname,
       email,
       phonenumber,
+      username,
       roleid,
       isactive
     });

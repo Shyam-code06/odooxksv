@@ -12,6 +12,7 @@ export default class AuthController extends BaseController {
     this.logout = this.logout.bind(this);
     this.refresh = this.refresh.bind(this);
     this.changePassword = this.changePassword.bind(this);
+    this.register = this.register.bind(this);
   }
 
   async login(req, res, next) {
@@ -19,6 +20,15 @@ export default class AuthController extends BaseController {
       const { username, password } = req.body;
       const result = await this.service.login(username, password);
       return this.sendSuccess(res, result, 'Login successful');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async register(req, res, next) {
+    try {
+      const result = await this.service.registerVendor(req.body);
+      return this.sendSuccess(res, result, 'Registration successful. Account is pending administrator review.', 201);
     } catch (error) {
       next(error);
     }

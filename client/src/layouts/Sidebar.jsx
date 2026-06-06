@@ -13,16 +13,63 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       permission: 'dashboard'
     },
     {
-      label: 'Activity',
+      label: 'Vendors',
+      icon: 'shop',
+      path: '/vendors',
+      permission: 'viewusers'
+    },
+    {
+      label: 'RFQs',
+      icon: 'file-earmark-text',
+      path: '/rfqs',
+      permission: 'dashboard',
+      hideForAdmin: true
+    },
+    {
+      label: 'Quotations',
+      icon: 'file-ruled',
+      path: '/quotations',
+      permission: 'dashboard',
+      hideForAdmin: true
+    },
+    {
+      label: 'Approvals',
+      icon: 'shield-check',
+      path: '/approvals',
+      permission: 'dashboard',
+      managerAdminOnly: true,
+      hideForAdmin: true
+    },
+    {
+      label: 'Purchase Orders',
+      icon: 'file-earmark-pdf',
+      path: '/purchase-orders',
+      permission: 'dashboard'
+    },
+    {
+      label: 'Invoices',
+      icon: 'receipt-cutoff',
+      path: '/invoices',
+      permission: 'dashboard'
+    },
+    {
+      label: 'Procurement Analytics',
+      icon: 'graph-up-arrow',
+      path: '/reports',
+      permission: 'viewstatistics'
+    },
+    {
+      label: 'Activity Logs',
       icon: 'clock-history',
-      path: '/audit-logs',
+      path: '/activity-logs',
       permission: 'viewactivitylogs'
     },
     {
       label: 'User Management',
       icon: 'people-fill',
       path: '/users',
-      permission: 'viewusers'
+      permission: 'viewusers',
+      adminOnly: true
     }
   ];
 
@@ -52,6 +99,18 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       <div className="flex-grow-1 py-3 overflow-y-auto px-2">
         <ul className="nav nav-pills flex-column gap-1">
           {menuItems.map((item, idx) => {
+            if (item.adminOnly && user?.rolename !== 'Admin') {
+              return null;
+            }
+
+            if (item.hideForAdmin && user?.rolename === 'Admin') {
+              return null;
+            }
+
+            if (item.managerAdminOnly && !['Manager', 'Admin'].includes(user?.rolename)) {
+              return null;
+            }
+
             // Check permission if item has a specific permission requirement
             if (item.permission && !hasPermission(item.permission)) {
               return null;

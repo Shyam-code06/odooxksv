@@ -37,8 +37,7 @@ const Dashboard = () => {
   }
 
   const stats = dashboardResponse?.stats || {};
-  const recentLogs = dashboardResponse?.recentLogs || [];
-  const roleStats = dashboardResponse?.roleStats || [];
+  const role = user?.rolename || 'Admin';
 
   const formatTimestamp = (dateStr) => {
     if (!dateStr) return '-';
@@ -51,54 +50,275 @@ const Dashboard = () => {
     });
   };
 
-  return (
-    <div>
-      <PageHeader 
-        title="Dashboard" 
-        breadcrumbs={[{ label: 'Dashboard', link: '/dashboard' }]}
-        action={
-          <div className="text-muted small fw-medium">
-            Welcome back, <span className="text-dark fw-bold">{user?.firstname} {user?.lastname}</span> ({user?.rolename})
+  const renderStatsCards = () => {
+    if (role === 'Vendor') {
+      return (
+        <div className="row g-4 mb-4">
+          <div className="col-12 col-sm-6 col-lg-4">
+            <StatCard title="RFQs Received" value={stats.rfqsReceived || 0} icon="mailbox" color="primary" />
           </div>
-        }
-      />
+          <div className="col-12 col-sm-6 col-lg-4">
+            <StatCard title="Quotations Submitted" value={stats.quotationsSubmitted || 0} icon="file-earmark-check" color="success" />
+          </div>
+          <div className="col-12 col-sm-6 col-lg-4">
+            <StatCard title="Purchase Orders" value={stats.purchaseOrdersCount || 0} icon="file-earmark-pdf" color="warning" />
+          </div>
+        </div>
+      );
+    }
 
-      {/* Top statistics cards (real-time data) */}
+    if (role === 'ProcurementOfficer') {
+      return (
+        <div className="row g-4 mb-4">
+          <div className="col-12 col-sm-6 col-lg-4">
+            <StatCard title="Active RFQs" value={stats.activeRfqs || 0} icon="file-earmark-play" color="primary" />
+          </div>
+          <div className="col-12 col-sm-6 col-lg-4">
+            <StatCard title="Pending Quotations" value={stats.pendingQuotations || 0} icon="hourglass-split" color="info" />
+          </div>
+          <div className="col-12 col-sm-6 col-lg-4">
+            <StatCard title="Purchase Orders" value={stats.purchaseOrdersCount || 0} icon="file-earmark-pdf" color="warning" />
+          </div>
+        </div>
+      );
+    }
+
+    if (role === 'Manager') {
+      return (
+        <div className="row g-4 mb-4">
+          <div className="col-12 col-sm-6">
+            <StatCard title="Pending Approvals" value={stats.pendingApprovals || 0} icon="shield-fill-exclamation" color="danger" />
+          </div>
+          <div className="col-12 col-sm-6">
+            <StatCard title="Decided Approvals" value={stats.completedApprovals || 0} icon="shield-fill-check" color="success" />
+          </div>
+        </div>
+      );
+    }
+
+    // Default: Admin
+    return (
       <div className="row g-4 mb-4">
         <div className="col-12 col-sm-6 col-lg-3">
-          <StatCard 
-            title="Total Users" 
-            value={stats.totalUsers || 0} 
-            icon="people" 
-            color="primary" 
-          />
+          <StatCard title="Total Vendors" value={stats.totalVendors || 0} icon="shop" color="primary" />
         </div>
         <div className="col-12 col-sm-6 col-lg-3">
-          <StatCard 
-            title="Active Users" 
-            value={stats.activeUsers || 0} 
-            icon="person-check" 
-            color="success" 
-          />
+          <StatCard title="Total RFQs" value={stats.totalRfqs || 0} icon="file-earmark-text" color="success" />
         </div>
         <div className="col-12 col-sm-6 col-lg-3">
-          <StatCard 
-            title="Activity Logs" 
-            value={stats.totalLogs || 0} 
-            icon="journal-check" 
-            color="info" 
-          />
+          <StatCard title="Pending Approvals" value={stats.pendingApprovals || 0} icon="hourglass-split" color="info" />
         </div>
         <div className="col-12 col-sm-6 col-lg-3">
-          <StatCard 
-            title="Active Sessions" 
-            value={stats.activeSessions || 0} 
-            icon="activity" 
-            color="warning" 
-          />
+          <StatCard title="Total Spend" value={`$${(stats.totalSpend || 0).toLocaleString()}`} icon="currency-dollar" color="warning" />
         </div>
       </div>
+    );
+  };
 
+  const renderDashboardPanels = () => {
+    if (role === 'Vendor') {
+      const recentRfqs = dashboardResponse?.recentRfqs || [];
+      const recentQuotations = dashboardResponse?.recentQuotations || [];
+
+      return (
+        <div className="row g-4">
+          <div className="col-12 col-lg-7">
+            <Card title="Recent RFQ Invitations">
+              {recentRfqs.length === 0 ? (
+                <p className="text-muted small p-3 mb-0">No active RFQs received.</p>
+              ) : (
+                <div className="table-responsive border-0">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead>
+                      <tr className="border-bottom border-light">
+                        <th className="py-3 px-3">RFQ Number</th>
+                        <th className="py-3 px-3">Title</th>
+                        <th className="py-3 px-3">Deadline</th>
+                        <th className="py-3 px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentRfqs.map((row) => (
+                        <tr key={row.id} className="border-bottom border-secondary border-opacity-10">
+                          <td className="py-3 px-3 fw-semibold text-primary">{row.rfqnumber}</td>
+                          <td className="py-3 px-3">{row.title}</td>
+                          <td className="py-3 px-3 text-muted small">{new Date(row.deadline).toLocaleDateString()}</td>
+                          <td className="py-3 px-3"><Badge variant="primary">{row.status}</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="col-12 col-lg-5">
+            <Card title="Your Recent Quotations">
+              {recentQuotations.length === 0 ? (
+                <p className="text-muted small p-3 mb-0">No quotations submitted yet.</p>
+              ) : (
+                <div className="d-flex flex-column gap-3 p-3">
+                  {recentQuotations.map((row) => (
+                    <div key={row.id} className="border rounded p-3 bg-white shadow-sm">
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <span className="small text-muted fw-semibold">RFQ: {row.rfqtitle}</span>
+                        <Badge variant={row.status === 'Accepted' ? 'success' : row.status === 'Rejected' ? 'danger' : 'warning'}>
+                          {row.status}
+                        </Badge>
+                      </div>
+                      <div className="d-flex justify-content-between align-items-center">
+                        <span className="fw-bold text-dark">${parseFloat(row.totalprice).toLocaleString()}</span>
+                        <span className="small text-muted">{row.deliverydays} days delivery</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    if (role === 'ProcurementOfficer') {
+      const recentRfqs = dashboardResponse?.recentRfqs || [];
+      const recentPOs = dashboardResponse?.recentPOs || [];
+
+      return (
+        <div className="row g-4">
+          <div className="col-12 col-lg-6">
+            <Card title="Recent RFQs Managed">
+              {recentRfqs.length === 0 ? (
+                <p className="text-muted small p-3 mb-0">No RFQs created yet.</p>
+              ) : (
+                <div className="table-responsive border-0">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead>
+                      <tr className="border-bottom border-light">
+                        <th className="py-3 px-3">RFQ Number</th>
+                        <th className="py-3 px-3">Title</th>
+                        <th className="py-3 px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentRfqs.map((row) => (
+                        <tr key={row.id} className="border-bottom border-secondary border-opacity-10">
+                          <td className="py-3 px-3 fw-semibold text-primary">{row.rfqnumber}</td>
+                          <td className="py-3 px-3">{row.title}</td>
+                          <td className="py-3 px-3"><Badge variant="info">{row.status}</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="col-12 col-lg-6">
+            <Card title="Recent Purchase Orders">
+              {recentPOs.length === 0 ? (
+                <p className="text-muted small p-3 mb-0">No purchase orders issued.</p>
+              ) : (
+                <div className="table-responsive border-0">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead>
+                      <tr className="border-bottom border-light">
+                        <th className="py-3 px-3">PO Number</th>
+                        <th className="py-3 px-3">Vendor</th>
+                        <th className="py-3 px-3">Total</th>
+                        <th className="py-3 px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentPOs.map((row) => (
+                        <tr key={row.id} className="border-bottom border-secondary border-opacity-10">
+                          <td className="py-3 px-3 fw-semibold text-primary">{row.ponumber}</td>
+                          <td className="py-3 px-3">{row.companyname}</td>
+                          <td className="py-3 px-3 fw-bold">${parseFloat(row.totalamount).toLocaleString()}</td>
+                          <td className="py-3 px-3"><Badge variant="warning">{row.status}</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    if (role === 'Manager') {
+      const recentPendingSteps = dashboardResponse?.recentPendingSteps || [];
+      const recentHistorySteps = dashboardResponse?.recentHistorySteps || [];
+
+      return (
+        <div className="row g-4">
+          <div className="col-12 col-lg-6">
+            <Card title="Pending Workflow Actions">
+              {recentPendingSteps.length === 0 ? (
+                <p className="text-muted small p-3 mb-0">No pending decisions.</p>
+              ) : (
+                <div className="d-flex flex-column gap-2 p-3">
+                  {recentPendingSteps.map((row) => (
+                    <div key={row.id} className="d-flex justify-content-between align-items-center p-3 border rounded bg-white">
+                      <div>
+                        <span className="fw-semibold text-dark d-block">Approve {row.workflowtype}</span>
+                        <span className="small text-muted">Step #{row.stepnumber}</span>
+                      </div>
+                      <button className="btn btn-sm btn-outline-primary" onClick={() => alert('Review workflow item')}>
+                        Review
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+
+          <div className="col-12 col-lg-6">
+            <Card title="Your Approval History">
+              {recentHistorySteps.length === 0 ? (
+                <p className="text-muted small p-3 mb-0">No action history.</p>
+              ) : (
+                <div className="table-responsive border-0">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead>
+                      <tr className="border-bottom border-light">
+                        <th className="py-3 px-3">Type</th>
+                        <th className="py-3 px-3">Decision</th>
+                        <th className="py-3 px-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentHistorySteps.map((row) => (
+                        <tr key={row.id} className="border-bottom border-secondary border-opacity-10">
+                          <td className="py-3 px-3 fw-semibold">{row.workflowtype}</td>
+                          <td className="py-3 px-3">
+                            <Badge variant={row.status === 'Approved' ? 'success' : 'danger'}>
+                              {row.status}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-3 text-muted small">{formatTimestamp(row.decidedat)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    // Default: Admin
+    const recentLogs = dashboardResponse?.recentLogs || [];
+    const roleStats = dashboardResponse?.roleStats || [];
+
+    return (
       <div className="row g-4">
         {/* Recent System Activity */}
         <div className="col-12 col-lg-7">
@@ -173,6 +393,26 @@ const Dashboard = () => {
           </Card>
         </div>
       </div>
+    );
+  };
+
+  return (
+    <div>
+      <PageHeader 
+        title="Dashboard" 
+        breadcrumbs={[{ label: 'Dashboard', link: '/dashboard' }]}
+        action={
+          <div className="text-muted small fw-medium">
+            Welcome back, <span className="text-dark fw-bold">{user?.firstname} {user?.lastname}</span> ({user?.rolename})
+          </div>
+        }
+      />
+
+      {/* Dynamic top statistics cards */}
+      {renderStatsCards()}
+
+      {/* Dynamic dashboard panels */}
+      {renderDashboardPanels()}
     </div>
   );
 };

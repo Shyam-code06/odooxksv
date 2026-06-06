@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import * as yup from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import axios from 'axios';
@@ -88,6 +88,10 @@ const Login = () => {
             Sign In
           </Button>
         </BaseForm>
+        <div className="text-center mt-3">
+          <span className="text-muted small">Representing a supplier? </span>
+          <Link to="/register" className="text-primary small fw-semibold text-decoration-none">Register Vendor</Link>
+        </div>
       </div>
     </div>
   );

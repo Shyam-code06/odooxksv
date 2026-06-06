@@ -74,7 +74,7 @@ export default class BaseRepository {
    * Update an existing record by id
    */
   async update(id, data) {
-    const keys = Object.keys(data).filter(key => this.isColumnAllowed(key));
+    const keys = Object.keys(data).filter(key => this.isColumnAllowed(key) && data[key] !== undefined);
     if (keys.length === 0) {
       throw new Error('No valid columns provided for update.');
     }

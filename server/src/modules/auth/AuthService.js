@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import UserRepository from '../user/UserRepository.js';
 import SessionRepository from './SessionRepository.js';
 import AuditLogRepository from '../auditlog/AuditLogRepository.js';
+import VendorRepository from '../vendor/VendorRepository.js';
 import {
   UnauthorizedError,
   ForbiddenError,
@@ -14,6 +15,7 @@ import {
 const userRepo = new UserRepository();
 const sessionRepo = new SessionRepository();
 const auditRepo = new AuditLogRepository();
+const vendorRepo = new VendorRepository();
 
 export default class AuthService {
   /**
@@ -186,6 +188,107 @@ export default class AuthService {
     return { message: 'Password changed successfully.' };
   }
 
+  /**
+   * Register a new vendor and their user account (Pending approval status)
+   */
+  async registerVendor(data) {
+    const {
+      username,
+      email,
+      password,
+      firstname,
+      lastname,
+      companyname,
+      category,
+      phone,
+      address,
+      gstnumber,
+      pannumber
+    } = data;
+
+    if (!username || !email || !password || !firstname || !lastname || !companyname || !category || !phone || !address) {
+      throw new BadRequestError('Required registration fields are missing.');
+    }
+
+    // 1. Check duplicate username or email in users
+    const existingUserByUsername = await userRepo.findByUsername(username);
+    if (existingUserByUsername) {
+      throw new BadRequestError('Username is already taken.');
+    }
+
+    const existingUserByEmail = await userRepo.findByEmail(email);
+    if (existingUserByEmail) {
+      throw new BadRequestError('Email address is already registered.');
+    }
+
+    // 2. Check duplicate vendor email, gst, or pan
+    const existingVendorByEmail = await vendorRepo.findOneBy('email', email);
+    if (existingVendorByEmail) {
+      throw new BadRequestError('Vendor email is already registered.');
+    }
+
+    if (gstnumber) {
+      const existingVendorByGst = await vendorRepo.findOneBy('gstnumber', gstnumber);
+      if (existingVendorByGst) {
+        throw new BadRequestError('GST number is already registered.');
+      }
+    }
+
+    if (pannumber) {
+      const existingVendorByPan = await vendorRepo.findOneBy('pannumber', pannumber);
+      if (existingVendorByPan) {
+        throw new BadRequestError('PAN number is already registered.');
+      }
+    }
+
+    // 3. Create the vendor record first
+    const newVendor = await vendorRepo.create({
+      companyname,
+      category,
+      email,
+      phone,
+      address,
+      contactperson: `${firstname} ${lastname}`,
+      gstnumber: gstnumber || null,
+      pannumber: pannumber || null,
+      status: 'Pending',
+      rating: 5.00
+    });
+
+    // 4. Hash password and create user account
+    const saltRounds = 10;
+    const passwordhash = await bcrypt.hash(password, saltRounds);
+
+    const vendorRoleId = 'b78e1b3d-71b5-4b08-b0a3-bf2e8964d4b3'; // Seeded Vendor role ID
+
+    const newUser = await userRepo.create({
+      firstname,
+      lastname,
+      email,
+      phonenumber: phone,
+      username,
+      passwordhash,
+      roleid: vendorRoleId,
+      vendorid: newVendor.id,
+      isactive: true
+    });
+
+    // 5. Log audit event
+    await auditRepo.logEvent({
+      userid: newUser.id,
+      action: 'register',
+      module: 'auth',
+      newvalue: { vendorid: newVendor.id, companyname }
+    });
+
+    // Return created details (excluding password hash)
+    const { passwordhash: _, ...safeUser } = newUser;
+    return {
+      user: safeUser,
+      vendor: newVendor
+    };
+  }
+
   // Helper: Create Access Token JWT
   generateAccessToken(user, permissions) {
     const payload = {
@@ -193,9 +296,12 @@ export default class AuthService {
       username: user.username,
       roleid: user.roleid,
       rolename: user.rolename,
+      vendorid: user.vendorid,
       permissions
     };
-    return jwt.sign(payload, process.env.JWTSECRET || 'supersecurejwtsecretkeyvendorbridge2026');
+    return jwt.sign(payload, process.env.JWTSECRET || 'supersecurejwtsecretkeyvendorbridge2026', {
+      expiresIn: process.env.JWTEXPIRESIN || '15m'
+    });
   }
 
   // Helper: Create Refresh Token JWT
@@ -204,6 +310,8 @@ export default class AuthService {
       id: user.id,
       jti: crypto.randomUUID()
     };
-    return jwt.sign(payload, process.env.JWTREFRESHSECRET || 'supersecurerefreshjwtsecretkeyvendorbridge2026');
+    return jwt.sign(payload, process.env.JWTREFRESHSECRET || 'supersecurerefreshjwtsecretkeyvendorbridge2026', {
+      expiresIn: process.env.JWTREFRESHEXPIRESIN || '7d'
+    });
   }
 }
